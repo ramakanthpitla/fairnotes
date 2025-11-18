@@ -67,46 +67,59 @@ export async function POST(request: Request) {
       );
     }
 
-    // Use a transaction to ensure both updates succeed or fail together
-    await prisma.$transaction([
-      // Update the purchase status to COMPLETED if purchaseId exists
-      ...(payment.purchaseId ? [prisma.purchase.update({
-        where: { id: payment.purchaseId },
+    // Get the purchase and pricing plan to calculate expiry
+    const purchase = await prisma.purchase.findUnique({
+      where: { id: payment.purchaseId || undefined }
+    });
+
+    if (!purchase) {
+      throw new Error('Purchase not found');
+    }
+
+    // Get the pricing plan to determine duration
+    const pricingPlan = await prisma.productPricing.findUnique({
+      where: { id: purchase.productPricingId }
+    });
+
+    // Calculate expiry date based on plan duration or default to 30 days
+    const durationInDays = pricingPlan?.duration || 30;
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + durationInDays);
+
+    // Update the purchase and payment status to COMPLETED
+    await Promise.all([
+      prisma.purchase.update({
+        where: { id: purchase.id },
         data: {
           status: 'COMPLETED',
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+          expiresAt: expiresAt
         }
-      })] : []),
+      }),
       
-      // Update the payment status
       prisma.payment.update({
         where: { id: payment.id },
         data: {
           status: 'COMPLETED',
           paymentId: paymentId,
-          updatedAt: new Date(),
-          // Ensure purchaseId is set if it wasn't set before
-          ...(!payment.purchaseId && {
-            purchase: {
-              connect: {
-                id: (await prisma.purchase.findFirst({
-                  where: {
-                    userId: user.id,
-                    productId: productId,
-                    status: 'PENDING'
-                  },
-                  select: { id: true }
-                }))?.id
-              }
-            }
-          })
+          updatedAt: new Date()
         }
       })
     ]);
 
+    // Get product details for response
+    const product = await prisma.product.findUnique({
+      where: { id: purchase.productId }
+    });
+
     return NextResponse.json({
       success: true,
       message: 'Payment verified successfully',
+      purchase: {
+        id: purchase.id,
+        productId: purchase.productId,
+        productTitle: product?.title || 'Unknown Product',
+        expiresAt: expiresAt
+      },
       paymentId,
       orderId,
       productId

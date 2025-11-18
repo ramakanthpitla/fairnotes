@@ -18,29 +18,91 @@ export async function GET(
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    // For free products, anyone can access. For paid, check purchase.
-    // For now, allow all active products to be accessed
     const session = await getServerSession(authOptions as any) as { user?: any };
     if (!session?.user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
-    // TODO: Check if user has purchased this product if it's not free
-    // For now, we're allowing access to all authenticated users
 
-    // First, try to use the file URL directly if it's a direct HTTP/HTTPS URL
-    const fileUrl = product.fileUrl;
-    
-    // If it's a direct HTTP/HTTPS URL, return it directly
-    if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
-      return NextResponse.json({ url: fileUrl });
+    const now = new Date();
+    let hasAccess = product.isFree;
+
+    if (!hasAccess) {
+      const validPurchase = await prisma.purchase.findFirst({
+        where: {
+          userId: session.user.id,
+          productId: product.id,
+          status: 'COMPLETED',
+          expiresAt: {
+            gte: now,
+          },
+        },
+      });
+
+      if (validPurchase) {
+        hasAccess = true;
+      } else {
+        const creditAccess = await prisma.creditUsage.findFirst({
+          where: {
+            userId: session.user.id,
+            productId: product.id,
+            isActive: true,
+            expiresAt: {
+              gte: now,
+            },
+          },
+          orderBy: {
+            expiresAt: 'desc',
+          },
+        });
+
+        hasAccess = !!creditAccess;
+      }
     }
 
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'You need to purchase this product to access it' },
+        { status: 403 }
+      );
+    }
+
+    // Get the file URL
+    const fileUrl = product.fileUrl;
+    
     // If we don't have a file URL, we can't proceed
     if (!fileUrl) {
       return NextResponse.json(
         { error: 'No file URL available for this product' },
         { status: 404 }
       );
+    }
+    
+    // If it's a direct HTTP/HTTPS URL, check if we need to add CORS proxy or convert to public URL
+    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+      // For S3 URLs, ensure they're in the correct format for public access
+      if (fileUrl.includes('.s3.') || fileUrl.includes('.amazonaws.com')) {
+        // Try to extract bucket and key from URL
+        let s3Url = fileUrl;
+        
+        // If URL has query parameters or fragments that might cause issues, clean it
+        try {
+          const urlObj = new URL(fileUrl);
+          // Reconstruct clean S3 URL without auth parameters
+          if (urlObj.hostname.includes('.s3.')) {
+            const bucket = urlObj.hostname.split('.s3.')[0];
+            const key = urlObj.pathname.startsWith('/') ? urlObj.pathname.substring(1) : urlObj.pathname;
+            const region = process.env.AWS_REGION || 'ap-south-2';
+            // Use path-style URL which is more reliable
+            s3Url = `https://s3.${region}.amazonaws.com/${bucket}/${key}`;
+          }
+        } catch (e) {
+          console.warn('Failed to parse S3 URL, using as-is:', e);
+        }
+        
+        console.log('Returning S3 URL:', s3Url);
+        return NextResponse.json({ url: s3Url });
+      }
+      return NextResponse.json({ url: fileUrl });
     }
 
     // Try to generate a presigned URL for S3 if credentials are available
@@ -99,15 +161,9 @@ export async function GET(
       const presignedUrl = await getSignedUrl(s3, command, { 
         expiresIn: 3600,
       });
-      
-      // Force path-style URL if needed
-      let finalUrl = presignedUrl;
-      if (presignedUrl.includes('amazonaws.com/') && !presignedUrl.includes('s3.amazonaws.com/')) {
-        finalUrl = presignedUrl.replace('s3.', 's3-accelerate.');
-      }
 
-      console.log('Generated presigned URL:', finalUrl);
-      return NextResponse.json({ url: finalUrl });
+      console.log('Generated presigned URL:', presignedUrl);
+      return NextResponse.json({ url: presignedUrl });
       
     } catch (s3Error: any) {
       console.error('S3 Error:', s3Error);

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { deleteFileFromS3 } from '@/lib/s3';
 import { UserSession } from '@/lib/auth-utils';
 
 function unauthorized() {
@@ -26,13 +27,15 @@ interface ProductUpdateData {
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = (await getServerSession(authOptions)) as UserSession | null;
   if (!session?.user || session.user.role !== 'ADMIN') return unauthorized();
 
+  const { id } = await params;
+
   const product = await prisma.product.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       pricing: {
         where: { isActive: true },
@@ -47,11 +50,12 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = (await getServerSession(authOptions)) as UserSession | null;
   if (!session?.user || session.user.role !== 'ADMIN') return unauthorized();
 
+  const { id } = await params;
   const body = (await request.json()) as ProductUpdateData;
   const { 
     title, 
@@ -68,7 +72,7 @@ export async function PUT(
     const [updatedProduct] = await prisma.$transaction([
       // Update the product
       prisma.product.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           ...(title !== undefined && { title }),
           ...(description !== undefined && { description }),
@@ -98,44 +102,65 @@ export async function PUT(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = (await getServerSession(authOptions)) as UserSession | null;
   if (!session?.user || session.user.role !== 'ADMIN') return unauthorized();
 
   try {
-    // Check if there are any purchases for this product
-    const purchaseCount = await prisma.purchase.count({
-      where: { productId: params.id },
+    const { id } = await params;
+    
+    // Get product details before deletion to access file URLs
+    const product = await prisma.product.findUnique({
+      where: { id },
+      select: { fileUrl: true, thumbnail: true },
     });
 
-    if (purchaseCount > 0) {
-      // Instead of deleting, mark as inactive
-      const updated = await prisma.product.update({
-        where: { id: params.id },
-        data: { isActive: false },
-      });
-      return NextResponse.json({ 
-        product: updated,
-        message: 'Product has been deactivated instead of deleted due to existing purchases.' 
-      });
+    if (!product) {
+      return NextResponse.json(
+        { error: 'Product not found' },
+        { status: 404 }
+      );
     }
-
-    // If no purchases, delete the product and its pricing options
+    
+    // Force delete the product even with purchases
+    // Purchase records will remain but productId will be set to null
     await prisma.$transaction([
-      prisma.productPricing.deleteMany({
-        where: { productId: params.id },
+      // First, update all purchases to set productId to null
+      prisma.purchase.updateMany({
+        where: { productId: id },
+        data: { productId: null as any },
       }),
+      // Then, delete all pricing plans
+      prisma.productPricing.deleteMany({
+        where: { productId: id },
+      }),
+      // Finally, delete the product
       prisma.product.delete({
-        where: { id: params.id },
+        where: { id: id },
       }),
     ]);
 
-    return NextResponse.json({ success: true });
+    // Delete files from S3 after successful database deletion
+    const filesToDelete = [product.fileUrl, product.thumbnail].filter(Boolean) as string[];
+    if (filesToDelete.length > 0) {
+      try {
+        await Promise.all(filesToDelete.map(url => deleteFileFromS3(url)));
+        console.log('Successfully deleted files from S3:', filesToDelete);
+      } catch (s3Error) {
+        // Log but don't fail the request - database deletion was successful
+        console.error('Error deleting files from S3:', s3Error);
+      }
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'Product and associated files deleted successfully. Customer purchase records have been preserved.'
+    });
   } catch (error) {
     console.error('Error deleting product:', error);
     return NextResponse.json(
-      { error: 'Failed to delete product' },
+      { error: 'Failed to delete product. Please try again.' },
       { status: 500 }
     );
   }

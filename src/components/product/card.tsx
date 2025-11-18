@@ -7,29 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
-import { CheckCircle, FileText, Video } from 'lucide-react';
-// Using inline thumbnail component instead of external file
-const ProductThumbnail = ({ thumbnail, title, type }: { thumbnail: string | null; title: string; type: 'PDF' | 'VIDEO' }) => {
-  return (
-    <div className="w-full h-full flex items-center justify-center bg-muted">
-      {thumbnail ? (
-        <img 
-          src={thumbnail} 
-          alt={title} 
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <div className="text-muted-foreground">
-          {type === 'PDF' ? (
-            <FileText className="w-12 h-12" />
-          ) : (
-            <Video className="w-12 h-12" />
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+import { CheckCircle, Heart, HeartOff } from 'lucide-react';
+import { ProductThumbnail } from '@/components/product/thumbnail';
+import { useLikedProducts } from '@/components/providers/liked-products-provider';
 
 export interface PricingPlan {
   id: string;
@@ -37,6 +17,9 @@ export interface PricingPlan {
   price: number;
   duration: number;
   isActive: boolean;
+  productId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 interface Product {
@@ -47,7 +30,7 @@ interface Product {
   type: 'PDF' | 'VIDEO';
   thumbnail: string | null;
   isFree: boolean;
-  pricingPlans?: PricingPlan[];
+  pricingPlans: PricingPlan[]; // Required field
   price?: number; // For backward compatibility
   duration?: number; // For backward compatibility
   fileUrl?: string;
@@ -59,47 +42,79 @@ interface ProductCardProps {
   onPurchaseSuccess?: (paymentId: string) => void;
 }
 
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  duration: number;
-  isActive: boolean;
-}
+// Using PricingPlan interface for plan data
 
-export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }: ProductCardProps) {
+export function ProductCard({ product, isPurchased: initialIsPurchased = false, onPurchaseSuccess }: ProductCardProps) {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { liked, isLiked, toggleLike } = useLikedProducts();
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(
     product.pricingPlans?.filter(plan => plan.isActive).length > 0 
       ? product.pricingPlans?.filter(plan => plan.isActive)[0].id 
       : null
   );
+  const [loading, setLoading] = useState(false);
+  const [isPurchased, setIsPurchased] = useState(initialIsPurchased);
+  const [purchaseExpired, setPurchaseExpired] = useState(false);
   
-  const handleBuyNow = async (e: React.MouseEvent) => {
-    e.preventDefault();
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
 
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => {
+        console.error('Failed to load Razorpay script');
+        resolve(false);
+      };
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleBuyNow = async () => {
     if (!session) {
       router.push('/login?callbackUrl=' + encodeURIComponent(window.location.href));
       return;
     }
 
-    if (product.pricingPlans?.length && !selectedPlanId) {
-      toast.error('Please select a plan');
+    // Validate plan selection for paid products
+    if (!product.isFree && !selectedPlanId) {
+      toast.error('Please select a pricing plan');
       return;
     }
 
-    const selectedPlan = selectedPlanId 
-      ? product.pricingPlans?.find(p => p.id === selectedPlanId)
-      : null;
-
-    // Calculate the final amount
-    const amount = selectedPlan ? selectedPlan.price : (product.price || 0);
-    const productDescription = selectedPlan 
-      ? `${product.title} - ${selectedPlan.name} Plan` 
-      : product.description || product.title;
-
+    setLoading(true);
+    
     try {
+      // Calculate amount based on selected plan
+      const selectedPlan = product.pricingPlans?.find(plan => plan.id === selectedPlanId);
+      
+      if (!selectedPlan && !product.isFree) {
+        throw new Error('Please select a pricing plan');
+      }
+      
+      const amount = selectedPlan?.price || 0;
+      const amountInPaise = Math.round(amount * 100); // Convert to paise and ensure it's an integer
+      
+      if (!product.isFree && (isNaN(amount) || amount <= 0)) {
+        throw new Error('Invalid product price');
+      }
+
+      const productDescription = selectedPlan 
+        ? `${product.title} - ${selectedPlan.name}` 
+        : product.title;
+
+      console.log('Creating order with:', {
+        productId: product.id,
+        amount: amountInPaise,
+        productName: product.title
+      });
+
       // Create order on the server
       const response = await fetch('/api/razorpay/create-order', {
         method: 'POST',
@@ -108,7 +123,8 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
         },
         body: JSON.stringify({
           productId: product.id,
-          amount: amount * 100, // Convert to paise
+          planId: selectedPlan?.id,
+          amount: amountInPaise,
           currency: 'INR',
           productName: product.title,
           productDescription,
@@ -116,28 +132,45 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Order creation failed:', errorData);
-        
-        if (errorData.code === 'AUTH_REQUIRED') {
-          router.push('/login?callbackUrl=' + encodeURIComponent(window.location.href));
-          return;
+        let errorData;
+        try {
+          const errorText = await response.text();
+          errorData = errorText ? JSON.parse(errorText) : {};
+          console.error('Order creation failed with status:', response.status, errorData);
+          
+          if (errorData.code === 'AUTH_REQUIRED') {
+            router.push('/login?callbackUrl=' + encodeURIComponent(window.location.href));
+            return;
+          }
+          
+          if (errorData.code === 'ALREADY_PURCHASED') {
+            toast.info('You already own this product');
+            return;
+          }
+          
+          if (errorData.code === 'INVALID_PRICE') {
+            toast.error('The product price is invalid. Please refresh the page and try again.');
+            return;
+          }
+          
+          throw new Error(errorData.message || errorData.error || 'Failed to create order');
+        } catch (e) {
+          console.error('Error processing error response:', e);
+          throw new Error(`Failed to process order: ${e instanceof Error ? e.message : 'Unknown error'}`);
         }
-        
-        if (errorData.code === 'ALREADY_PURCHASED') {
-          toast.info('You already own this product');
-          return;
-        }
-        
-        throw new Error(errorData.message || errorData.error || 'Failed to create order');
       }
 
       const order = await response.json();
       console.log('Order created:', order);
 
-      // Initialize Razorpay
+      // Load Razorpay script if not already loaded
+      const razorpayLoaded = await loadRazorpay();
+      if (!razorpayLoaded) {
+        throw new Error('Payment gateway failed to load. Please check your internet connection and refresh the page.');
+      }
+
       if (!window.Razorpay) {
-        throw new Error('Payment gateway failed to load. Please refresh the page and try again.');
+        throw new Error('Payment gateway is not available. Please try again later.');
       }
 
       const options = {
@@ -160,6 +193,8 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
                   orderId: response.razorpay_order_id,
                   paymentId: response.razorpay_payment_id,
                   signature: response.razorpay_signature,
+                  productId: product.id,
+                  planId: selectedPlan?.id,
                 }),
               });
 
@@ -168,6 +203,7 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
               }
 
               toast.success('Payment successful!');
+              setLoading(false);
               onPurchaseSuccess?.(response.razorpay_payment_id);
               router.push(`/payment/success?payment_id=${response.razorpay_payment_id}`);
             } else {
@@ -176,6 +212,7 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
           } catch (error) {
             console.error('Payment verification error:', error);
             toast.error('Payment verification failed. Please contact support.');
+            setLoading(false);
           }
         },
         prefill: {
@@ -188,6 +225,7 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
         modal: {
           ondismiss: () => {
             console.log('Payment modal dismissed');
+            setLoading(false);
           },
         },
       };
@@ -198,6 +236,14 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
     } catch (error) {
       console.error('Payment error:', error);
       toast.error(error instanceof Error ? error.message : 'Payment failed. Please try again.');
+      setLoading(false);
+    } finally {
+      // Reset loading after a brief delay if Razorpay opened successfully
+      // This is to prevent the button from flickering
+      setTimeout(() => {
+        if (!loading) return; // Already reset
+        setLoading(false);
+      }, 1000);
     }
   };
   
@@ -222,8 +268,13 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
           });
           
           if (response.ok) {
-            const { hasPurchased } = await response.json();
-            isPurchased = hasPurchased;
+            const { hasPurchased, isValid, expiresAt } = await response.json();
+            setIsPurchased(hasPurchased);
+            // Check if purchase has expired
+            if (hasPurchased && expiresAt) {
+              const expired = new Date(expiresAt) < new Date();
+              setPurchaseExpired(expired);
+            }
           }
         } catch (error) {
           console.error('Error checking purchase status:', error);
@@ -235,15 +286,45 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
   }, [status, session, product.id, product.isFree]);
 
   const showBuyButton = !product.isFree && !isPurchased && selectedPlanId;
-  const isFreeOrPurchased = product.isFree || isPurchased;
+  // Only show as purchased if it's actually valid (not expired)
+  const isValidPurchase = isPurchased && !purchaseExpired;
+  const isFreeOrPurchased = product.isFree || isValidPurchase;
+  const likedProductPayload = {
+    id: product.id,
+    sku: product.sku,
+    title: product.title,
+    description: product.description,
+    type: product.type,
+    thumbnail: product.thumbnail,
+    isFree: product.isFree,
+    price: product.price,
+    duration: product.duration,
+  } as const;
 
   return (
     <div className="rounded-lg border bg-card overflow-hidden hover:shadow-md transition-shadow relative">
-      <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
-        {isPurchased && (
+      <div className="absolute top-2 right-2 flex flex-col items-end gap-1 z-10">
+        <button
+          type="button"
+          onClick={() => toggleLike(likedProductPayload)}
+          className="inline-flex items-center justify-center rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+          aria-label={isLiked(product.id) ? 'Remove from liked' : 'Add to liked'}
+        >
+          {isLiked(product.id) ? (
+            <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+          ) : (
+            <Heart className="w-4 h-4" />
+          )}
+        </button>
+        {isValidPurchase && (
           <div className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full flex items-center">
             <CheckCircle className="w-3 h-3 mr-1" />
             Purchased
+          </div>
+        )}
+        {purchaseExpired && isPurchased && (
+          <div className="bg-orange-100 text-orange-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+            Expired
           </div>
         )}
         {!isPurchased && product.isFree && (
@@ -251,7 +332,7 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
             Free
           </div>
         )}
-        {(isPurchased || product.isFree) && (
+        {(isValidPurchase || product.isFree) && (
           <div className="bg-emerald-100 text-emerald-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
             Available
           </div>
@@ -260,9 +341,11 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
       
       <div className="aspect-[16/9] bg-muted relative overflow-hidden">
         <ProductThumbnail 
-          thumbnail={product.thumbnail}
-          title={product.title}
-          type={product.type}
+          product={{
+            thumbnail: product.thumbnail,
+            title: product.title,
+          }}
+          className="w-full h-full"
         />
       </div>
       
@@ -333,24 +416,33 @@ export function ProductCard({ product, isPurchased = false, onPurchaseSuccess }:
         </div>
         
         <div className="flex gap-2 mt-4">
-          <Link
-            href={`/products/${product.id}${!isFreeOrPurchased && hasPricingPlans && selectedPlanId ? `?planId=${selectedPlanId}` : ''}`}
-            className="flex-1 text-center rounded-md px-3 py-2 text-sm font-medium border border-primary text-primary hover:bg-primary/10 transition-colors"
-          >
-            {isFreeOrPurchased ? 'View' : 'Details'}
-          </Link>
-          {!isFreeOrPurchased && (
-            <button
-              onClick={handleBuyNow}
-              disabled={hasPricingPlans && !selectedPlanId}
-              className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
-                hasPricingPlans && !selectedPlanId 
-                  ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              } shadow-sm transition-colors`}
+          {isFreeOrPurchased ? (
+            <Link
+              href={`/products/${product.id}/view`}
+              className="flex-1 text-center rounded-md px-3 py-2 text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
             >
-              {hasPricingPlans ? (selectedPlanId ? 'Buy Now' : 'Select Plan') : 'Buy Now'}
-            </button>
+              View Content
+            </Link>
+          ) : (
+            <>
+              <Link
+                href={`/products/${product.id}${hasPricingPlans && selectedPlanId ? `?planId=${selectedPlanId}` : ''}`}
+                className="flex-1 text-center rounded-md px-3 py-2 text-sm font-medium border border-primary text-primary hover:bg-primary/10 transition-colors"
+              >
+                Details
+              </Link>
+              <button
+                onClick={handleBuyNow}
+                disabled={hasPricingPlans && !selectedPlanId}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
+                  hasPricingPlans && !selectedPlanId 
+                    ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                } shadow-sm transition-colors`}
+              >
+                {hasPricingPlans ? (selectedPlanId ? 'Buy Now' : 'Select Plan') : 'Buy Now'}
+              </button>
+            </>
           )}
         </div>
       </div>

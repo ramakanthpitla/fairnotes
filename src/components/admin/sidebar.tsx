@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Home, Users, BookOpen, BarChart2, Settings } from 'lucide-react';
+import { Home, Users, BookOpen, BarChart2, Settings, FileUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function Sidebar() {
@@ -39,6 +39,14 @@ export function Sidebar() {
             >
               <BookOpen className="h-4 w-4" />
               Products
+            </Link>
+            
+            <Link
+              href="/admin/submissions"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+            >
+              <FileUp className="h-4 w-4" />
+              User Submissions
             </Link>
             
             <Link

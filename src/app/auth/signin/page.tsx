@@ -16,13 +16,12 @@ export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const error = searchParams?.get('error');
-  const callbackUrl = searchParams?.get('callbackUrl') || '/dashboard';
+  const redirectPath = '/';
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     if (error) {
-      console.error('Sign in error:', error);
       const normalized = String(error).toLowerCase();
       
       // Handle different types of OAuth errors
@@ -31,7 +30,7 @@ export default function SignInPage() {
       } else if (normalized.includes('access_denied')) {
         setErrorMessage('Sign in was cancelled. Please try again if you want to continue.');
       } else {
-        setErrorMessage(`Sign in error: ${normalized}`);
+        setErrorMessage('Authentication failed. Please try again.');
       }
       
       // Clear the error from URL to prevent showing it again on refresh
@@ -46,23 +45,16 @@ export default function SignInPage() {
   useEffect(() => {
     // If user is already signed in, redirect to 
     if (session) {
-      // If we have a callback URL, use it, otherwise go to dashboard
-      const url = new URL(callbackUrl, window.location.origin);
-      // Ensure we're not redirecting back to signin
-      if (!url.pathname.startsWith('/auth/signin')) {
-        router.push(url.pathname);
-      } else {
-        router.push('/dashboard');
-      }
+      router.push(redirectPath);
     }
-  }, [session, callbackUrl, router]);
+  }, [session, redirectPath, router]);
 
   const handleSignIn = async () => {
     try {
       setIsLoading(true);
       setErrorMessage('');
       // Let NextAuth manage state/cookies; use normal redirect flow
-      await signIn('google', { callbackUrl });
+      await signIn('google', { callbackUrl: redirectPath });
     } catch (error) {
       console.error('Sign in error:', error);
       setErrorMessage('Failed to sign in. Please try again.');
@@ -121,12 +113,6 @@ export default function SignInPage() {
             </a>
             .
           </p>
-          
-          <div className="mt-4 rounded-md bg-muted/50 p-3 text-xs">
-            <p className="font-medium">Debug Info:</p>
-            <p>Callback URL: {callbackUrl}</p>
-            {error && <p>Error: {error}</p>}
-          </div>
         </div>
       </div>
     </div>

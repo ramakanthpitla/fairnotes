@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProductThumbnail } from '@/components/product/thumbnail';
 import { useSession } from 'next-auth/react';
+import { Heart } from 'lucide-react';
+import { useLikedProducts } from '@/components/providers/liked-products-provider';
 
 type Product = {
   id: string;
@@ -16,24 +18,42 @@ type Product = {
   type: string;
   thumbnail: string | null;
   isFree: boolean;
-  price?: number;
+  price?: number | null;
 };
 
 export function FeaturedProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { status } = useSession();
+  const { isLiked, toggleLike } = useLikedProducts();
 
   useEffect(() => {
     async function fetchFeaturedProducts() {
       try {
+        console.log('[FeaturedProducts] Fetching products...');
         const response = await fetch('/api/products/featured');
-        if (response.ok) {
-          const data = await response.json();
-          setProducts(data);
+        
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('[FeaturedProducts] API error:', err);
+          throw new Error(err?.error || `HTTP ${response.status}`);
         }
+        
+        const data = await response.json();
+        console.log('[FeaturedProducts] Received data:', data);
+        
+        if (!Array.isArray(data)) {
+          console.error('[FeaturedProducts] Invalid data format:', data);
+          throw new Error('Invalid response format');
+        }
+        
+        setProducts(data);
+        setError(null);
+        console.log('[FeaturedProducts] Successfully loaded', data.length, 'products');
       } catch (error) {
-        console.error('Error fetching featured products:', error);
+        console.error('[FeaturedProducts] Error:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load products');
       } finally {
         setLoading(false);
       }
@@ -52,6 +72,21 @@ export function FeaturedProducts() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600 font-medium">{error}</p>
+        <Button 
+          variant="outline" 
+          onClick={() => window.location.reload()}
+          className="mt-4"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
   if (products.length === 0) {
     return null; // Don't show anything if no featured products
   }
@@ -63,13 +98,40 @@ export function FeaturedProducts() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Featured Study Materials</h2>
           <Button variant="outline" asChild>
-            <Link href="/browse">View All</Link>
+            <Link href={status === 'authenticated' ? '/browse' : '/auth/signin?callbackUrl=/browse'}>
+              View All
+            </Link>
           </Button>
         </div>
         
         <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {products.map((product) => (
-            <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
+            <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow relative">
+              <button
+                type="button"
+                onClick={() =>
+                  toggleLike({
+                    id: product.id,
+                    sku: '',
+                    title: product.title,
+                    description: product.description,
+                    type: (product.type as 'PDF' | 'VIDEO') || 'PDF',
+                    thumbnail: product.thumbnail,
+                    isFree: product.isFree,
+                    price: product.price ?? undefined,
+                    duration: undefined,
+                  })
+                }
+                className="absolute top-1.5 right-1.5 z-10 inline-flex items-center justify-center rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                aria-label={isLiked(product.id) ? 'Remove from liked' : 'Add to liked'}
+              >
+                <Heart
+                  className={`w-3.5 h-3.5 ${
+                    isLiked(product.id) ? 'fill-red-500 text-red-500' : ''
+                  }`}
+                />
+              </button>
+
               <div className="aspect-[4/3] bg-muted relative">
                 <ProductThumbnail 
                   product={{

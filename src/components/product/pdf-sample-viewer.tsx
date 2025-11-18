@@ -1,59 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { getPdfPageCount } from '@/lib/pdf-utils';
-
-// Client-side only component to handle PDF viewing
-const PDFViewerContent = ({ fileUrl, previewPercentage, propPageCount, onLoad, onError }: {
-  fileUrl: string;
-  previewPercentage: number;
-  propPageCount: number | null;
-  onLoad: (pages: number, totalPages: number) => void;
-  onError: (error: string) => void;
-}) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const isMounted = useRef(true);
-
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const loadPdfInfo = async () => {
-      if (!fileUrl) return;
-      
-      try {
-        const count = await getPdfPageCount(fileUrl);
-        if (!isMounted.current) return;
-        
-        const pagesToShow = Math.min(5, Math.max(1, Math.ceil(count * (previewPercentage / 100))));
-        onLoad(pagesToShow, count);
-      } catch (error) {
-        console.error('Error loading PDF:', error);
-        if (isMounted.current) {
-          onError('Failed to load PDF preview');
-        }
-      } finally {
-        if (isMounted.current) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    loadPdfInfo();
-  }, [fileUrl, previewPercentage, onLoad, onError]);
-
-  // This component doesn't render anything visible
-  // It just handles the PDF loading and calls the provided callbacks
-  return null;
-};
 
 interface PDFSampleViewerProps {
   fileUrl: string;
+  productId: string;
   title: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -63,152 +16,182 @@ interface PDFSampleViewerProps {
 
 export function PDFSampleViewer({
   fileUrl,
+  productId,
   title,
   open,
   onOpenChange,
   previewPercentage = 5,
   pageCount: propPageCount = null,
 }: PDFSampleViewerProps) {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState('');
-  const [pagesToShow, setPagesToShow] = useState(1);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewPages, setPreviewPages] = useState<number | null>(null);
   const [actualPageCount, setActualPageCount] = useState<number | null>(propPageCount);
-  const isMounted = useRef(true);
 
+  // No cleanup needed for data URLs
+
+  // Load preview when dialog opens
   useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  const handlePdfLoad = (pages: number, totalPages: number) => {
-    if (!isMounted.current) return;
-    
-    setPagesToShow(pages);
-    setActualPageCount(totalPages);
-    
-    // Create the preview URL with the first few pages
-    const previewUrl = `${fileUrl}#page=1-${pages}&toolbar=0&navpanes=0&view=FitH`;
-    setPreviewUrl(previewUrl);
-    
-    setLoading(false);
-  };
-
-  const handlePdfError = (errorMsg: string) => {
-    if (!isMounted.current) return;
-    
-    console.error('PDF Error:', errorMsg);
-    setError(errorMsg);
-    setLoading(false);
-  };
-  
-  // Initialize with prop page count if available
-  useEffect(() => {
-    if (propPageCount && !actualPageCount) {
-      setActualPageCount(propPageCount);
-      const pages = Math.min(5, Math.max(1, Math.ceil(propPageCount * ((previewPercentage || 5) / 100))));
-      setPagesToShow(pages);
-      setPreviewUrl(`${fileUrl}#page=1-${pages}&toolbar=0&navpanes=0&view=FitH`);
+    if (!open) {
+      return;
     }
-  }, [propPageCount, previewPercentage, fileUrl]);
+
+    let isMounted = true;
+
+    const fetchPreview = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        setPreviewUrl(null);
+
+        const url = `/api/products/${productId}/sample?previewPercentage=${previewPercentage}`;
+        console.log('[PDF Preview] Fetching from:', url);
+
+        // Start loading immediately - don't wait for full response
+        setPreviewUrl('loaded');
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        console.log('[PDF Preview] Response received:', {
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get('content-type'),
+          ok: response.ok,
+        });
+
+        if (!response.ok) {
+          let errorMsg = `HTTP ${response.status}`;
+          try {
+            const data = await response.json();
+            errorMsg = data.error || errorMsg;
+          } catch (e) {
+            console.warn('[PDF Preview] Could not parse error response as JSON');
+          }
+          setPreviewUrl(null);
+          throw new Error(errorMsg);
+        }
+
+        // Get headers
+        const totalPagesStr = response.headers.get('x-total-pages');
+        const previewPagesStr = response.headers.get('x-preview-pages');
+        
+        const totalPages = totalPagesStr ? parseInt(totalPagesStr, 10) : null;
+        const previewPageCount = previewPagesStr ? parseInt(previewPagesStr, 10) : null;
+
+        console.log('[PDF Preview] Headers:', { totalPages, previewPageCount });
+
+        if (!isMounted) return;
+
+        // Update page info
+        setPreviewPages(previewPageCount);
+        setActualPageCount(totalPages);
+        console.log('[PDF Preview] Preview started loading');
+      } catch (err) {
+        console.error('[PDF Preview] Error:', err);
+        if (isMounted) {
+          const msg = err instanceof Error ? err.message : 'Failed to load preview';
+          console.error('[PDF Preview] Setting error message:', msg);
+          setError(msg);
+        }
+      }
+    };
+
+    fetchPreview();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [open, productId, previewPercentage]);
+
+  const pdfUrl = useMemo(() => {
+    // Use the API endpoint directly instead of data URL
+    // This avoids Brave browser blocking data URLs
+    return `/api/products/${productId}/sample?previewPercentage=${previewPercentage}`;
+  }, [productId, previewPercentage]);
 
   const handleRetry = () => {
     setError(null);
     setLoading(true);
-    // Force re-render to retry loading
-    setPreviewUrl(prev => `${prev}${prev.includes('?') ? '&' : '?'}retry=${Date.now()}`);
+    setPreviewUrl(null);
+    // Trigger refetch by toggling open state
+    onOpenChange(false);
+    setTimeout(() => onOpenChange(true), 100);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-        <div className="px-6 pt-6 pb-2">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>Sample Preview: {title}</span>
-              {actualPageCount !== null && (
-                <span className="text-sm font-normal text-muted-foreground">
-                  {actualPageCount} {actualPageCount === 1 ? 'page' : 'pages'}
-                </span>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-        </div>
-        
-        <div className="flex-1 overflow-hidden flex flex-col">
+      <DialogContent className="w-[95vw] h-[95vh] max-w-7xl flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-2 border-b flex-shrink-0">
+          <DialogTitle className="flex justify-between items-center">
+            <span>Sample Preview: {title}</span>
+            {actualPageCount && (
+              <span className="text-xs font-normal text-gray-500">
+                {actualPageCount} pages total
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col bg-gray-100 relative min-h-0">
           {error ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-4">
-              <p className="text-red-500 mb-4">{error}</p>
+            <div className="flex-1 flex items-center justify-center flex-col gap-4">
+              <div className="text-center">
+                <p className="text-red-600 font-medium mb-2">Preview Error</p>
+                <p className="text-sm text-gray-600 mb-4">{error}</p>
+              </div>
               <Button onClick={handleRetry} variant="outline">
                 Try Again
               </Button>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col">
-              <div className="relative flex-1 bg-gray-100">
-                {previewUrl ? (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <iframe
-                      key={previewUrl}
-                      src={previewUrl}
-                      title={`${title} - Sample Preview`}
-                      className="w-full h-full border-0"
-                      sandbox="allow-scripts allow-same-origin"
-                      onError={() => handlePdfError('Failed to load PDF preview')}
-                      onLoad={() => setLoading(false)}
-                    />
-                  </div>
-                ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="animate-pulse text-muted-foreground">
-                      Loading preview...
+            <>
+              {loading && (
+                <div className="absolute inset-0 flex items-center justify-center flex-col gap-4 bg-white/80 backdrop-blur-sm z-50">
+                  <div className="text-center">
+                    <div className="inline-block animate-spin mb-4">
+                      <svg className="w-16 h-16 text-blue-600" fill="none" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.1" />
+                        <path
+                          fill="currentColor"
+                          d="M12 2a10 10 0 0 1 10 10h-2a8 8 0 0 0-8-8V2z"
+                        />
+                      </svg>
                     </div>
+                    <p className="text-lg font-medium text-gray-700 mb-1">Loading Preview...</p>
+                    <p className="text-sm text-gray-500">Generating sample pages...</p>
                   </div>
-                )}
-                
-                {/* Preview Overlay */}
-                {!loading && previewUrl && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="text-center p-6 max-w-md bg-white/90 rounded-lg border border-gray-200 shadow-lg">
-                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 mb-3">
-                        <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">Sample Preview</h3>
-                      <p className="text-sm text-gray-600 mb-4">
-                        Showing {pagesToShow} of {actualPageCount || '...'} pages ({previewPercentage}% preview)
+                </div>
+              )}
+              {previewUrl && (
+                <>
+                  <iframe
+                    src={pdfUrl}
+                    className="flex-1 w-full border-0 bg-white"
+                    title={`${title} - Sample`}
+                    onLoad={() => {
+                      console.log('[PDF Preview] iframe loaded successfully');
+                      setLoading(false);
+                    }}
+                    onError={() => {
+                      console.error('[PDF Preview] iframe load error');
+                      setError('Failed to load preview in PDF viewer');
+                    }}
+                  />
+                  {previewPages && actualPageCount && (
+                    <div className="px-6 py-3 border-t bg-white flex justify-between items-center flex-shrink-0">
+                      <p className="text-xs text-gray-600">
+                        📄 Preview: First <span className="font-semibold">{previewPages}</span> page{previewPages !== 1 ? 's' : ''} of <span className="font-semibold">{actualPageCount}</span> pages
                       </p>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenChange(false);
-                        }}
-                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 pointer-events-auto"
-                      >
-                        View Purchase Options
-                      </button>
+                      <p className="text-xs text-blue-600 font-medium">Sample Only - Purchase to view full document</p>
                     </div>
-                  </div>
-                )}
-              </div>
-              
-              <PDFViewerContent 
-                fileUrl={fileUrl}
-                previewPercentage={previewPercentage}
-                propPageCount={propPageCount}
-                onLoad={handlePdfLoad}
-                onError={handlePdfError}
-              />
-              
-              <div className="px-6 py-3 border-t bg-gray-50">
-                <p className="text-center text-sm text-muted-foreground">
-                  This is a preview. Purchase to view the full document{actualPageCount ? ` (${actualPageCount} pages)` : ''}.
-                </p>
-              </div>
-            </div>
+                  )}
+                </>
+              )}
+            </>
           )}
         </div>
       </DialogContent>

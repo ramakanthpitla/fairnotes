@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { redirect } from 'next/navigation';
 import type { User } from 'next-auth';
 
 declare module 'next-auth' {
@@ -20,7 +21,7 @@ export async function getCurrentUser() {
 export async function requireAuth() {
   const user = await getCurrentUser();
   if (!user) {
-    throw new Error('Not authenticated');
+    redirect('/auth/signin');
   }
   return user as User & { role?: string };
 }
@@ -28,7 +29,7 @@ export async function requireAuth() {
 export async function requireAdmin() {
   const user = await requireAuth();
   if (user.role !== 'ADMIN') {
-    throw new Error('Not authorized');
+    redirect('/auth/signin');
   }
   return user;
 }

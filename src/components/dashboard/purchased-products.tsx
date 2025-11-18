@@ -6,19 +6,22 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ProductThumbnail } from '@/components/product/thumbnail';
-import { CheckCircle, Clock } from 'lucide-react';
+import { CheckCircle, Clock, Heart } from 'lucide-react';
+import { useLikedProducts } from '@/components/providers/liked-products-provider';
 
 type Product = {
   id: string;
   title: string;
   description: string | null;
-  type: string;
+  type?: string;
   fileUrl: string;
   thumbnail: string | null;
   isFree: boolean;
   expiresAt: string;
   purchaseId: string;
   status: string;
+  accessType: 'PURCHASE' | 'CREDIT';
+  amount?: number;
   productPricing: {
     id: string;
     name: string;
@@ -31,6 +34,7 @@ export function PurchasedProducts({ userId }: { userId: string }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { isLiked, toggleLike } = useLikedProducts();
 
   useEffect(() => {
     async function fetchPurchasedProducts() {
@@ -41,7 +45,19 @@ export function PurchasedProducts({ userId }: { userId: string }) {
           throw new Error(errorData.error || 'Failed to fetch purchased products');
         }
         const data = await response.json();
-        setProducts(data);
+        
+        // Transform the API response to match component structure
+        const transformedData = data.map((item: any) => ({
+          ...item.product,
+          purchaseId: item.purchaseId,
+          status: item.status,
+          expiresAt: item.expiresAt,
+          productPricing: item.productPricing,
+          accessType: item.accessType,
+          amount: item.amount,
+        }));
+        
+        setProducts(transformedData);
         setError(null);
       } catch (error) {
         console.error('Error fetching purchased products:', error);
@@ -86,85 +102,118 @@ export function PurchasedProducts({ userId }: { userId: string }) {
       <div className="rounded-lg border p-8 text-center">
         <p className="text-muted-foreground">You haven't purchased any materials yet</p>
         <Button variant="outline" className="mt-4" asChild>
-          <Link href="/products">Browse Materials</Link>
+          <Link href="/browse">Browse Materials</Link>
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+    <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {products.map((product) => {
         const isExpired = new Date(product.expiresAt) < new Date();
-        const formattedExpiry = format(new Date(product.expiresAt), 'MMM d, yyyy');
+        const formattedExpiry = format(new Date(product.expiresAt), 'MMM d');
         const price = product.productPricing?.price || 0;
+        const isCreditAccess = product.accessType === 'CREDIT';
+        const likedPayload = {
+          id: product.id,
+          sku: '',
+          title: product.title,
+          description: product.description,
+          type: (product.type as 'PDF' | 'VIDEO') || 'PDF',
+          thumbnail: product.thumbnail,
+          isFree: product.isFree,
+          price,
+          duration: product.productPricing?.duration,
+        } as const;
         
         return (
-          <Card key={product.purchaseId} className="flex flex-col overflow-hidden hover:shadow-md transition-shadow h-full">
-            <div className="aspect-[4/3] bg-muted relative">
-              <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                <ProductThumbnail 
-                  product={{
-                    thumbnail: product.thumbnail,
-                    title: product.title
-                  }}
-                  className="w-full h-full object-cover"
-                />
-              </div>
+          <Card key={product.purchaseId} className="flex flex-col overflow-hidden hover:shadow-lg transition-all duration-200 hover:scale-105 relative">
+            <button
+              type="button"
+              onClick={() => toggleLike(likedPayload)}
+              className="absolute top-1.5 right-1.5 z-10 inline-flex items-center justify-center rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+              aria-label={isLiked(product.id) ? 'Remove from liked' : 'Add to liked'}
+            >
+              <Heart
+                className={`w-3.5 h-3.5 ${
+                  isLiked(product.id) ? 'fill-red-500 text-red-500' : ''
+                }`}
+              />
+            </button>
+
+            <div className="aspect-[3/4] bg-muted relative">
+              <ProductThumbnail 
+                product={{
+                  thumbnail: product.thumbnail,
+                  title: product.title
+                }}
+                className="w-full h-full object-cover"
+              />
               
               {isExpired && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <span className="bg-red-500 text-white text-xs font-medium px-2 py-0.5 rounded-full">
-                    Expired
+                <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                  <span className="bg-red-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
+                    EXPIRED
                   </span>
                 </div>
               )}
               
-              <div className="absolute top-2 left-2">
-                {!product.isFree ? (
-                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                    Purchased
+              <div className="absolute top-1.5 left-1.5">
+                {isCreditAccess ? (
+                  <span className="bg-emerald-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded shadow">
+                    CREDIT
+                  </span>
+                ) : !product.isFree ? (
+                  <span className="bg-blue-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded shadow">
+                    PAID
                   </span>
                 ) : (
-                  <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                    Free
+                  <span className="bg-green-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded shadow">
+                    FREE
                   </span>
                 )}
               </div>
+
+              {product.type && (
+                <div className="absolute top-1.5 right-1.5">
+                  <span className="bg-black/70 text-white text-[9px] font-medium px-1.5 py-0.5 rounded">
+                    {product.type.toUpperCase()}
+                  </span>
+                </div>
+              )}
             </div>
             
-            <div className="p-4 flex flex-col flex-1">
-              <h3 className="font-medium text-sm line-clamp-2 h-10 leading-tight mb-2" title={product.title}>
+            <div className="p-2 flex flex-col gap-1.5">
+              <h3 className="font-semibold text-xs line-clamp-2 leading-tight min-h-[2rem]" title={product.title}>
                 {product.title}
               </h3>
               
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-                <span className="capitalize">{product.type.toLowerCase()}</span>
-                <div className="flex items-center">
-                  <Clock className="w-3 h-3 mr-1" />
-                  <span>{isExpired ? 'Expired' : `Exp ${formattedExpiry}`}</span>
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-0.5">
+                  <Clock className="w-2.5 h-2.5" />
+                  <span>{isExpired ? 'Expired' : formattedExpiry}</span>
                 </div>
+                {!isCreditAccess && !product.isFree && price > 0 && (
+                  <span className="font-semibold text-primary">₹{price}</span>
+                )}
               </div>
-              
-              {!product.isFree && (
-                <div className="mb-3 text-sm">
-                  <span className="text-muted-foreground">Price: </span>
-                  <span className="font-medium">₹{price || 'N/A'}</span>
+              {isCreditAccess && (
+                <div className="text-[10px] text-muted-foreground">
+                  Access via Credits (1 credit)
                 </div>
               )}
               
-              <div className="mt-auto">
-                <Button 
-                  asChild 
-                  variant={isExpired ? 'outline' : 'default'}
-                  size="sm"
-                  className="w-full"
-                >
-                  <Link href={`/products/${product.id}`}>
-                    {isExpired ? 'View Details' : 'View Content'}
-                  </Link>
-                </Button>
-              </div>
+              <Button 
+                asChild 
+                variant={isExpired ? 'outline' : 'default'}
+                size="sm"
+                className="w-full h-7 text-[11px] mt-0.5"
+              >
+                <Link href={isExpired ? `/products/${product.id}` : `/products/${product.id}/view`}>
+                  {isExpired ? 'Renew' : 'View'}
+                </Link>
+              </Button>
             </div>
           </Card>
         );

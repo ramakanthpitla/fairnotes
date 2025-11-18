@@ -68,13 +68,6 @@ export async function GET(
       );
     }
 
-    if (!product) {
-      return NextResponse.json(
-        { error: 'Product not found' },
-        { status: 404 }
-      );
-    }
-
     // Extract pricing plans from the product
     const pricingPlans = product.pricing || [];
 

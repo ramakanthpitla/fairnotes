@@ -66,11 +66,9 @@ async function updateProduct(id: string, formData: FormData) {
       data: {
         title,
         description,
-        price: isFree ? 0 : price,
         type: type as any,
         fileUrl,
         thumbnail,
-        duration,
         isActive,
         isFree,
       },
@@ -129,14 +127,35 @@ async function updateProduct(id: string, formData: FormData) {
 
 async function deleteProduct(id: string) {
   'use server';
-  await prisma.product.delete({ where: { id } });
+  
+  // Force delete the product even with purchases
+  // Purchase records will remain but productId will be set to null
+  await prisma.$transaction([
+    // First, update all purchases to set productId to null
+    prisma.purchase.updateMany({
+      where: { productId: id },
+      data: { productId: null as any },
+    }),
+    // Then, delete all pricing plans
+    prisma.productPricing.deleteMany({
+      where: { productId: id },
+    }),
+    // Finally, delete the product
+    prisma.product.delete({
+      where: { id },
+    }),
+  ]);
+  
+  // Redirect after successful deletion
   redirect('/admin/products');
 }
 
-export default async function EditProductPage({ params }: { params: { id: string } }) {
+export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
   
-  if (!params?.id) {
+  const { id } = await params;
+  
+  if (!id) {
     redirect('/admin/products');
   }
 
@@ -145,13 +164,10 @@ export default async function EditProductPage({ params }: { params: { id: string
   try {
     const result = await prisma.product.findFirst({
       where: { 
-        OR: [
-          { id: params.id },
-          { id: { equals: params.id, mode: 'insensitive' } }
-        ]
+        id: id
       },
       include: {
-        ProductPricing: {
+        pricing: {
           where: { isActive: true },
           orderBy: { duration: 'asc' },
         },
@@ -159,7 +175,7 @@ export default async function EditProductPage({ params }: { params: { id: string
     });
     
     if (!result) {
-      console.error(`Product not found with id: ${params.id}`);
+      console.error(`Product not found with id: ${id}`);
       redirect('/admin/products');
     }
     
@@ -172,9 +188,9 @@ export default async function EditProductPage({ params }: { params: { id: string
       thumbnail: result.thumbnail,
       isFree: result.isFree,
       isActive: result.isActive,
-      price: result.price || 0,
-      duration: result.duration || 30,
-      pricingPlans: result.ProductPricing.map(p => ({
+      price: result.pricing[0]?.price || 0,
+      duration: result.pricing[0]?.duration || 30,
+      pricingPlans: result.pricing.map((p: any) => ({
         id: p.id,
         name: p.name,
         price: p.price,
@@ -191,18 +207,13 @@ export default async function EditProductPage({ params }: { params: { id: string
     <div className="container mx-auto py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-bold">Edit Product</h1>
-        <form action={async () => {
+        <form action={async (formData: FormData) => {
           'use server';
           await deleteProduct(product!.id);
         }}>
           <Button 
             type="submit" 
-            variant="destructive" 
-            onClick={(e) => {
-              if (!confirm('Are you sure you want to delete this product?')) {
-                e.preventDefault();
-              }
-            }}
+            variant="destructive"
           >
             Delete Product
           </Button>
@@ -229,40 +240,35 @@ export default async function EditProductPage({ params }: { params: { id: string
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-sm font-medium">Type</label>
-            <Select name="type" defaultValue={product?.type || 'ebook'}>
+            <Select name="type" defaultValue={product?.type || 'PDF'}>
               <SelectTrigger>
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ebook">E-book</SelectItem>
-                <SelectItem value="video">Video Course</SelectItem>
-                <SelectItem value="bundle">Bundle</SelectItem>
+                <SelectItem value="PDF">PDF</SelectItem>
+                <SelectItem value="VIDEO">Video</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">File URL</label>
-            <div className="flex space-x-2">
-              <Input name="fileUrl" defaultValue={product?.fileUrl || ''} />
-              <HiddenInputUploader 
-                name="fileUrl" 
-                label="Upload File" 
-                accept=".pdf,.doc,.docx,.mp4,.mov" 
-              />
-            </div>
+            <HiddenInputUploader 
+              name="fileUrl" 
+              label="Upload File (PDF or Video)" 
+              accept="application/pdf,video/*" 
+              defaultValue={product?.fileUrl || ''}
+            />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Thumbnail URL</label>
-            <div className="flex space-x-2">
-              <Input name="thumbnail" defaultValue={product?.thumbnail || ''} />
-              <HiddenInputUploader 
-                name="thumbnail" 
-                label="Upload Thumbnail" 
-                accept="image/*" 
-              />
-            </div>
+            <HiddenInputUploader 
+              name="thumbnail" 
+              label="Upload Thumbnail" 
+              accept="image/*" 
+              defaultValue={product?.thumbnail || ''}
+            />
           </div>
 
           <div className="space-y-2">
@@ -326,9 +332,6 @@ export default async function EditProductPage({ params }: { params: { id: string
                 <PricingPlans 
                   productId={product?.id} 
                   initialPlans={product?.pricingPlans || []}
-                  onPlansChange={(plans) => {
-                    // This will be handled by the form submission
-                  }}
                 />
                 <input type="hidden" name="pricingPlans" value={JSON.stringify(product?.pricingPlans || [])} />
               </div>

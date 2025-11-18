@@ -10,6 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { PaymentSection } from '@/components/product/payment-section';
 import { ProductThumbnail } from '@/components/product/thumbnail';
+import { CheckCircle } from 'lucide-react';
 
 // Define the checkPurchaseStatus function
 async function checkPurchaseStatus(userId: string, productId: string): Promise<{ hasPurchased: boolean }> {
@@ -51,15 +52,18 @@ interface ProductDetailContentProps {
     pricing: PricingPlan[];
   };
   initialPlanId?: string | null;
+  isPurchased?: boolean;
 }
 
-export default function ProductDetailContent({ product, initialPlanId = null }: ProductDetailContentProps) {
+export default function ProductDetailContent({ product, initialPlanId = null, isPurchased: initialIsPurchased = false }: ProductDetailContentProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(initialPlanId || null);
   const [isPurchasing, setIsPurchasing] = useState(false);
-  const [isPurchased, setIsPurchased] = useState(false);
+  const [isPurchased, setIsPurchased] = useState(initialIsPurchased);
   const [isLoading, setIsLoading] = useState(true);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [isUsingCredit, setIsUsingCredit] = useState(false);
 
   // Update selected plan when initialPlanId changes
   useEffect(() => {
@@ -69,6 +73,25 @@ export default function ProductDetailContent({ product, initialPlanId = null }: 
       setSelectedPlanId(product.pricing[0].id);
     }
   }, [initialPlanId, product.pricing]);
+
+  // Load current credit balance
+  useEffect(() => {
+    async function fetchCredits() {
+      if (!session?.user?.id) return;
+      try {
+        const res = await fetch('/api/user/credits');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (typeof data.credits === 'number') {
+          setCredits(data.credits);
+        }
+      } catch (err) {
+        console.error('Failed to load credits', err);
+      }
+    }
+
+    fetchCredits();
+  }, [session?.user?.id]);
 
   const handlePurchase = async () => {
     if (!selectedPlanId) {
@@ -165,7 +188,8 @@ export default function ProductDetailContent({ product, initialPlanId = null }: 
   useEffect(() => {
     async function verifyPurchase() {
       try {
-        if (status === 'authenticated' && session?.user?.id) {
+        // Only check purchase status if not already set from props and user is authenticated
+        if (status === 'authenticated' && session?.user?.id && !initialIsPurchased) {
           const { hasPurchased } = await checkPurchaseStatus(session.user.id, product.id);
           setIsPurchased(hasPurchased);
         }
@@ -177,7 +201,7 @@ export default function ProductDetailContent({ product, initialPlanId = null }: 
     }
 
     verifyPurchase();
-  }, [status, session, product.id]);
+  }, [status, session, product.id, initialIsPurchased]);
 
   // Show loading state while checking purchase status
   if (isLoading) {
@@ -188,16 +212,40 @@ export default function ProductDetailContent({ product, initialPlanId = null }: 
     );
   }
 
-  // If product is free or already purchased, show the viewer
+  // If product is free or already purchased, show view content option
   if (product?.isFree || isPurchased) {
     return (
-      <div className="container mx-auto py-8">
-        <ProductViewer product={{
-          id: product.id,
-          type: product.type as 'PDF' | 'VIDEO',
-          title: product.title,
-          fileUrl: product.fileUrl
-        }} />
+      <div className="container mx-auto py-8 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-lg shadow-md p-8 text-center">
+            <div className="mb-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-10 h-10 text-green-600" />
+              </div>
+              <h1 className="text-3xl font-bold mb-2">{product.title}</h1>
+              <p className="text-gray-600">
+                {product.isFree ? 'This is a free product' : 'You own this product'}
+              </p>
+            </div>
+            
+            {product.description && (
+              <p className="text-gray-700 mb-6">{product.description}</p>
+            )}
+            
+            <div className="flex gap-4 justify-center">
+              <Button asChild size="lg" className="bg-green-600 hover:bg-green-700">
+                <Link href={`/products/${product.id}/view`}>
+                  View Content
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/browse">
+                  Browse More
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -258,10 +306,65 @@ export default function ProductDetailContent({ product, initialPlanId = null }: 
                 </div>
               )}
             </div>
-            <div className="prose prose-sm text-muted-foreground">
+            <div className="prose prose-sm text-muted-foreground whitespace-pre-line">
               {product.description || 'No description available'}
             </div>
           </div>
+
+          {/* Credit balance and use-credit action */}
+          {session?.user?.id && (
+            <div className="mb-4 flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Credit Balance</p>
+                <p className="text-lg font-semibold">{credits ?? '...'}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isUsingCredit || (credits !== null && credits <= 0)}
+                onClick={async () => {
+                  if (!product.id) return;
+                  try {
+                    setIsUsingCredit(true);
+                    const res = await fetch('/api/user/credits/use', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ productId: product.id }),
+                    });
+
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                      if (data.error === 'INSUFFICIENT_CREDITS') {
+                        toast.error('You do not have enough credits.');
+                        return;
+                      }
+                      if (data.error === 'ALREADY_HAS_ACCESS') {
+                        toast.info('You already have active access to this product.');
+                        setIsPurchased(true);
+                        return;
+                      }
+                      toast.error(data.error || 'Failed to use credit');
+                      return;
+                    }
+
+                    if (typeof data.remainingCredits === 'number') {
+                      setCredits(data.remainingCredits);
+                    }
+                    toast.success('Credit used successfully! You can now view this product.');
+                    setIsPurchased(true);
+                  } catch (err) {
+                    console.error('Error using credit', err);
+                    toast.error('Failed to use credit. Please try again.');
+                  } finally {
+                    setIsUsingCredit(false);
+                  }
+                }}
+              >
+                {isUsingCredit ? 'Using...' : 'Use 1 Credit'}
+              </Button>
+            </div>
+          )}
           
           {product.pricing && product.pricing.length > 0 ? (
             <div className="mb-6">

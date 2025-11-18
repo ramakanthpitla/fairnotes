@@ -2,8 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { formatCurrency } from '@/lib/utils';
+import { ProductsList } from '@/components/admin/products-list';
 
 type Product = {
   id: string;
@@ -124,6 +123,13 @@ export default async function AdminProductsPage() {
       pricing: pricingByProduct[product.id] || []
     }));
 
+    // Transform products to include pricing with proper structure
+    const productsData = productsWithPricing.map(product => ({
+      ...product,
+      createdAt: product.createdAt.toISOString(),
+      updatedAt: product.updatedAt.toISOString(),
+    }));
+
     return (
       <div className="container mx-auto py-8">
         <div className="mb-8 flex items-center justify-between">
@@ -136,64 +142,7 @@ export default async function AdminProductsPage() {
           </Button>
         </div>
 
-        <div className="rounded-lg border bg-card">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Title</th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Type</th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Pricing Options</th>
-                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                  <th className="px-6 py-3 text-right text-sm font-medium text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {productsWithPricing.map((product) => (
-                  <tr key={product.id} className="hover:bg-muted/50">
-                    <td className="whitespace-nowrap px-6 py-4">{product.title}</td>
-                    <td className="whitespace-nowrap px-6 py-4 capitalize">{product.type}</td>
-                    <td className="px-6 py-4">
-                      {product.isFree ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-700">Free</Badge>
-                      ) : product.pricing.length > 0 ? (
-                        <div className="space-y-1">
-                          {product.pricing.map((price) => (
-                            <div key={price.id} className="text-sm">
-                              <span className="font-medium">{price.name}:</span>{' '}
-                              <span className="text-muted-foreground">
-                                {formatCurrency(price.price)} for {price.duration} days
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">No pricing set</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <Badge variant={product.isActive ? 'default' : 'secondary'}>
-                        {product.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                      <Link href={`/admin/products/${product.id}`} className="text-primary hover:text-primary/80">
-                        Edit
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-                {products.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
-                      No products found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ProductsList initialProducts={productsData} />
       </div>
     );
   } catch (error) {

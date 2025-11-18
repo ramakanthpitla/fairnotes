@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +18,7 @@ type PricingPlan = {
 type PricingPlansProps = {
   productId: string;
   initialPlans?: PricingPlan[];
-  onPlansChange: (plans: PricingPlan[]) => void;
+  onPlansChange?: (plans: PricingPlan[]) => void;
 };
 
 export function PricingPlans({ productId, initialPlans = [], onPlansChange }: PricingPlansProps) {
@@ -42,13 +42,13 @@ export function PricingPlans({ productId, initialPlans = [], onPlansChange }: Pr
     const updatedPlans = [...plans];
     updatedPlans[index] = { ...updatedPlans[index], [field]: value };
     setPlans(updatedPlans);
-    onPlansChange(updatedPlans);
+    onPlansChange?.(updatedPlans);
   };
 
   const removePlan = (index: number) => {
     const updatedPlans = plans.filter((_, i) => i !== index);
     setPlans(updatedPlans);
-    onPlansChange(updatedPlans);
+    onPlansChange?.(updatedPlans);
   };
 
   return (
@@ -127,6 +127,12 @@ export function PricingPlans({ productId, initialPlans = [], onPlansChange }: Pr
           </div>
         ))}
       </div>
+
+      <input
+        type="hidden"
+        name="pricingPlans"
+        value={JSON.stringify(plans)}
+      />
     </div>
   );
 }

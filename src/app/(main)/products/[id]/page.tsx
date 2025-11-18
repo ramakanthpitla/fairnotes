@@ -41,6 +41,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPurchased, setIsPurchased] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
   const params = useParams();
@@ -63,6 +64,24 @@ export default function ProductDetailPage() {
 
         const data = await response.json();
         setProduct(data);
+        
+        // Check if user has purchased this product
+        if (!data.isFree) {
+          try {
+            const purchaseResponse = await fetch('/api/check-purchase', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ productId }),
+            });
+            
+            if (purchaseResponse.ok) {
+              const { hasPurchased } = await purchaseResponse.json();
+              setIsPurchased(hasPurchased);
+            }
+          } catch (err) {
+            console.error('Error checking purchase status:', err);
+          }
+        }
       } catch (err) {
         console.error('Error fetching product:', err);
         setError('Failed to load product. Please try again.');
@@ -118,6 +137,7 @@ export default function ProductDetailPage() {
         <ProductDetailContent 
           product={productData} 
           initialPlanId={initialPlanId}
+          isPurchased={isPurchased}
         />
       )}
     </div>

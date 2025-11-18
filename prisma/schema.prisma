@@ -36,18 +36,21 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  role          String    @default("USER") // ADMIN or USER
-  accounts      Account[]
-  sessions      Session[]
-  purchases     Purchase[]
-  payments      Payment[]
-  createdAt     DateTime? @default(now())
-  updatedAt     DateTime? @updatedAt
+  id              String           @id @default(auto()) @map("_id") @db.ObjectId
+  name            String?
+  email           String?          @unique
+  emailVerified   DateTime?
+  image           String?
+  role            String           @default("USER") // ADMIN or USER
+  credits         Int              @default(0) // Credit points for free access
+  accounts        Account[]
+  sessions        Session[]
+  purchases       Purchase[]
+  payments        Payment[]
+  submissions     UserSubmission[] // PDFs submitted by user
+  creditUsages    CreditUsage[]    // Track credit usage history
+  createdAt       DateTime?        @default(now())
+  updatedAt       DateTime?        @updatedAt
 }
 
 model VerificationToken {
@@ -104,16 +107,16 @@ enum ProductType {
 model Purchase {
   id               String          @id @default(auto()) @map("_id") @db.ObjectId
   userId           String          @db.ObjectId
-  productId        String          @db.ObjectId
-  productPricingId String          @db.ObjectId
+  productId        String?         @db.ObjectId
+  productPricingId String?         @db.ObjectId
   amount           Float
   status           String          // 'PENDING', 'COMPLETED', 'FAILED'
   expiresAt        DateTime
   payment          Payment?        @relation("PurchaseToPayment")
   paymentId        String?         @db.ObjectId
   user             User            @relation(fields: [userId], references: [id])
-  product          Product         @relation(fields: [productId], references: [id])
-  productPricing   ProductPricing  @relation(fields: [productPricingId], references: [id])
+  product          Product?        @relation(fields: [productId], references: [id])
+  productPricing   ProductPricing? @relation(fields: [productPricingId], references: [id])
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -138,4 +141,36 @@ model Payment {
 
   @@index([userId])
   @@index([status])
+}
+
+model UserSubmission {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  title       String   // User's description/title of the PDF
+  pdfUrl      String   // S3 URL of uploaded PDF
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminNotes  String?  // Admin's notes/reason for rejection
+  productId   String?  @db.ObjectId // If approved and converted to product
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model CreditUsage {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  productId    String   @db.ObjectId
+  creditsUsed  Int      // Number of credits used (should be 1)
+  expiresAt    DateTime // When the 60-day access expires
+  isActive     Boolean  @default(true) // Track if still valid
+  user         User     @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([productId])
+  @@index([expiresAt])
 }

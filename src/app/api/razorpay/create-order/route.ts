@@ -13,6 +13,7 @@ type RazorpayOrder = {
   created_at: number;
 };
 
+// Initialize Razorpay with proper type checking
 const razorpay = new Razorpay({
   key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -24,30 +25,64 @@ export async function POST(request: Request) {
   try {
     // Verify session
     const session = await getServerSession(authOptions);
-    console.log('Session:', session ? 'Valid' : 'Invalid');
     
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       console.error('No valid session found');
       return NextResponse.json(
         { error: 'Authentication required', code: 'AUTH_REQUIRED' },
         { status: 401 }
       );
     }
-    
-    // Parse request body
+
+    // Parse request body with validation
     let requestBody;
     try {
       requestBody = await request.json();
-      console.log('Request body:', JSON.stringify(requestBody, null, 2));
-    } catch (parseError) {
-      console.error('Error parsing request body:', parseError);
+      console.log('Request body received:', {
+        ...requestBody,
+        amount: requestBody.amount ? '***' : 'missing',
+        hasPlanId: !!requestBody.planId
+      });
+
+      // Validate required fields
+      if (!requestBody.productId) {
+        throw new Error('Product ID is required');
+      }
+      
+      if (typeof requestBody.amount !== 'number' || requestBody.amount <= 0) {
+        throw new Error('Valid amount is required');
+      }
+    } catch (error) {
+      console.error('Error processing request:', error);
       return NextResponse.json(
-        { error: 'Invalid request body', code: 'INVALID_BODY' },
+        { 
+          error: error instanceof Error ? error.message : 'Invalid request',
+          code: 'INVALID_REQUEST',
+          details: error instanceof Error ? error.stack : undefined
+        },
         { status: 400 }
       );
     }
     
-    const { productId } = requestBody;
+    const { productId, amount, planId } = requestBody;
+    
+    // Validate required fields
+    if (!productId) {
+      return NextResponse.json(
+        { error: 'Product ID is required', code: 'MISSING_PRODUCT_ID' },
+        { status: 400 }
+      );
+    }
+    
+    // Convert amount to number and validate
+    const amountNumber = Number(amount);
+    if (isNaN(amountNumber) || amountNumber <= 0) {
+      console.error('Invalid amount:', { amount, amountNumber });
+      return NextResponse.json(
+        { error: 'Invalid amount', code: 'INVALID_AMOUNT' },
+        { status: 400 }
+      );
+    }
     if (!productId) {
       console.error('No productId provided in request');
       return NextResponse.json(
@@ -60,10 +95,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get product details
+    // Get product details first
     console.log(`Fetching product with ID: ${productId}`);
+    
     const product = await prisma.product.findUnique({
-      where: { id: productId },
+      where: { id: productId }
     });
 
     if (!product) {
@@ -76,6 +112,83 @@ export async function POST(request: Request) {
         },
         { status: 404 }
       );
+    }
+    
+    // If planId was provided, verify it exists and get its details
+    let selectedPlan = null;
+    if (planId) {
+      try {
+        selectedPlan = await prisma.productPricing.findFirst({
+          where: { 
+            id: planId,
+            productId: productId,
+            isActive: true
+          }
+        });
+
+        if (!selectedPlan) {
+          console.error(`Plan not found or inactive: ${planId}`);
+          return NextResponse.json(
+            { error: 'Selected plan not found or inactive', code: 'PLAN_NOT_FOUND' },
+            { status: 404 }
+          );
+        }
+
+        // Verify the amount matches the plan price (converted to paise)
+        const expectedAmount = Math.round(selectedPlan.price * 100);
+        if (amountNumber !== expectedAmount) {
+          console.error('Amount mismatch:', { 
+            expected: expectedAmount, 
+            received: amountNumber,
+            planPrice: selectedPlan.price
+          });
+          return NextResponse.json(
+            { 
+              error: 'Amount does not match the selected plan price', 
+              code: 'AMOUNT_MISMATCH',
+              expectedAmount: expectedAmount,
+              receivedAmount: amountNumber
+            },
+            { status: 400 }
+          );
+        }
+      } catch (error) {
+        console.error('Error fetching plan details:', error);
+        return NextResponse.json(
+          { 
+            error: 'Error validating plan details', 
+            code: 'PLAN_VALIDATION_ERROR',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          },
+          { status: 500 }
+        );
+      }
+      
+      if (!selectedPlan) {
+        return NextResponse.json(
+          { 
+            error: 'Pricing plan not found or is not active',
+            code: 'PLAN_NOT_FOUND',
+            planId
+          },
+          { status: 404 }
+        );
+      }
+      
+      // Verify the provided amount matches the plan price
+      const planAmount = Math.round(selectedPlan.price * 100);
+      if (planAmount !== amountNumber) {
+        console.error('Amount mismatch:', { planAmount, amountNumber });
+        return NextResponse.json(
+          { 
+            error: 'Amount does not match the selected plan',
+            code: 'AMOUNT_MISMATCH',
+            expectedAmount: planAmount,
+            providedAmount: amountNumber
+          },
+          { status: 400 }
+        );
+      }
     }
     
     console.log('Found product:', JSON.stringify({
@@ -108,34 +221,29 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate product price
-    const amount = Number(product.price);
-    if (isNaN(amount) || amount <= 0) {
-      console.error('Invalid product price:', product.price);
+    // For paid products, a pricing plan must be selected
+    if (amountNumber > 0 && !selectedPlan) {
+      console.error('No pricing plan selected for paid product');
       return NextResponse.json(
         { 
-          error: 'Invalid product price',
-          code: 'INVALID_PRICE',
-          price: product.price
+          error: 'A pricing plan must be selected for this product',
+          code: 'PLAN_REQUIRED'
         },
         { status: 400 }
       );
     }
 
-    // Validate product duration
-    const defaultDurationDays = 30; // Default to 30 days if duration is not provided
-    const durationInDays = Number(product.duration) || defaultDurationDays;
+    // Calculate duration - use plan duration if available, otherwise default to 30 days
+    const defaultDurationDays = 30;
+    let durationInDays = selectedPlan?.duration || defaultDurationDays;
     
+    // Ensure duration is a valid number
+    durationInDays = Math.max(1, Math.floor(Number(durationInDays)) || defaultDurationDays);
+    
+    // Ensure duration is valid
     if (isNaN(durationInDays) || durationInDays <= 0) {
-      console.error('Invalid product duration:', product.duration);
-      return NextResponse.json(
-        { 
-          error: 'Invalid product duration',
-          code: 'INVALID_DURATION',
-          duration: product.duration
-        },
-        { status: 400 }
-      );
+      console.error('Invalid duration:', durationInDays);
+      durationInDays = defaultDurationDays; // Fallback to default
     }
 
     // Calculate expiry date
@@ -145,47 +253,82 @@ export async function POST(request: Request) {
     console.log('Creating purchase with:', {
       userId: session.user.id,
       productId: product.id,
-      amount,
+      planId,
+      amount: amountNumber,
       durationInDays,
-      expiresAt
+      expiresAt: expiresAt.toISOString()
     });
 
+    // For free products, get or create a default pricing plan
+    let pricingPlanId = selectedPlan?.id;
+    if (!pricingPlanId) {
+      // Get the first available pricing plan for the product
+      const defaultPlan = await prisma.productPricing.findFirst({
+        where: {
+          productId: product.id,
+          isActive: true
+        },
+        orderBy: {
+          price: 'asc' // Get the cheapest plan
+        }
+      });
+      
+      if (!defaultPlan) {
+        console.error('No pricing plan found for product:', product.id);
+        return NextResponse.json(
+          { 
+            error: 'No pricing plan available for this product',
+            code: 'NO_PRICING_PLAN'
+          },
+          { status: 400 }
+        );
+      }
+      
+      pricingPlanId = defaultPlan.id;
+      durationInDays = defaultPlan.duration;
+    }
+    
     // Create purchase record
     const purchase = await prisma.purchase.create({
       data: {
         userId: session.user.id,
         productId: product.id,
-        amount: amount, // Ensure amount is a valid number
+        productPricingId: pricingPlanId,
+        amount: amountNumber / 100, // Store in base currency (e.g., INR)
         status: 'PENDING',
         expiresAt: expiresAt,
       },
     });
 
-    // Create Razorpay order
+    // For free products, return success immediately
+    if (amountNumber === 0) {
+      // Update purchase status to COMPLETED for free products
+      await prisma.purchase.update({
+        where: { id: purchase.id },
+        data: { status: 'COMPLETED' }
+      });
+      
+      return NextResponse.json({
+        id: 'free-purchase',
+        amount: 0,
+        currency: 'INR',
+        status: 'created',
+        purchaseId: purchase.id
+      });
+    }
+
+    // Create Razorpay order for paid products
     console.log('Creating Razorpay order...');
     
-    // Ensure price is a valid number
-    const amountInPaise = Math.round(Number(product.price) * 100);
-    if (isNaN(amountInPaise) || amountInPaise <= 0) {
-      console.error('Invalid product price:', product.price);
-      return NextResponse.json(
-        { 
-          error: 'Invalid product price',
-          code: 'INVALID_PRICE',
-          price: product.price
-        },
-        { status: 400 }
-      );
-    }
-    
     const orderOptions = {
-      amount: amountInPaise, // Amount in paise
+      amount: amountNumber, // Already in paise from the client
       currency: 'INR' as const,
       receipt: `order_${purchase.id}`,
       payment_capture: 1 as const,
       notes: {
         purchaseId: purchase.id,
         productId: product.id,
+        planId: planId || '',
         userId: session.user.id,
       },
     };

@@ -8,6 +8,7 @@ type PurchaseResponse = {
   status: string;
   expiresAt: string;
   amount: number;
+  accessType: 'PURCHASE' | 'CREDIT';
   product: {
     id: string;
     title: string;
@@ -37,32 +38,67 @@ export async function GET() {
       );
     }
 
-    // Get the user's purchases with product information
-    const userWithPurchases = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      include: {
-        purchases: {
-          where: { status: 'COMPLETED' },
-          include: {
-            product: true,
-          },
-          orderBy: { createdAt: 'desc' },
+    const [rawPurchases, creditUsages] = await Promise.all([
+      prisma.purchase.findMany({
+        where: {
+          userId: session.user.id,
+          status: 'COMPLETED',
         },
-      },
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.creditUsage.findMany({
+        where: {
+          userId: session.user.id,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
 
-    if (!userWithPurchases) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+    const productIdSet = new Set<string>();
+
+    for (const purchase of rawPurchases) {
+      if (purchase.productId) {
+        productIdSet.add(purchase.productId);
+      }
     }
+
+    for (const usage of creditUsages) {
+      if (usage.productId) {
+        productIdSet.add(usage.productId);
+      }
+    }
+
+    const productIds = Array.from(productIdSet);
+
+    // Fetch all products in one query (only if we have valid product IDs)
+    const products = productIds.length > 0 ? await prisma.product.findMany({
+      where: {
+        id: { in: productIds },
+        isActive: true
+      }
+    }) : [];
+
+    // Create a map for quick lookup
+    const productMap = new Map(products.map(p => [p.id, p]));
 
     // Transform the data to match the expected format
     const formattedPurchases: PurchaseResponse[] = [];
+    const now = new Date();
 
-    for (const purchase of userWithPurchases.purchases) {
-      if (!purchase.product) continue;
+    for (const purchase of rawPurchases) {
+      // Skip if product was deleted (productId is null)
+      if (!purchase.productId) {
+        console.log('Skipping purchase with deleted product:', purchase.id);
+        continue;
+      }
+      
+      const product = productMap.get(purchase.productId);
+      
+      // Skip if product is deleted, missing, or inactive
+      if (!product) {
+        console.log('Skipping purchase with deleted/inactive product:', purchase.id);
+        continue;
+      }
       
       // Get active pricing for the product
       const activePricing = await prisma.productPricing.findFirst({
@@ -80,14 +116,15 @@ export async function GET() {
         status: purchase.status,
         expiresAt: purchase.expiresAt.toISOString(),
         amount: purchase.amount,
+        accessType: 'PURCHASE',
         product: {
-          id: purchase.product.id,
-          title: purchase.product.title,
-          description: purchase.product.description || '',
-          fileUrl: purchase.product.fileUrl || '',
-          type: purchase.product.type,
-          thumbnail: purchase.product.thumbnail,
-          isFree: purchase.product.isFree,
+          id: product.id,
+          title: product.title,
+          description: product.description || '',
+          fileUrl: product.fileUrl || '',
+          type: product.type,
+          thumbnail: product.thumbnail,
+          isFree: product.isFree,
         },
         productPricing: activePricing ? {
           id: activePricing.id,
@@ -98,6 +135,38 @@ export async function GET() {
         purchaseId: purchase.id,
       });
     }
+
+    for (const usage of creditUsages) {
+      const product = productMap.get(usage.productId);
+
+      if (!product) {
+        console.log('Skipping credit access with deleted/inactive product:', usage.id);
+        continue;
+      }
+
+      const status = usage.expiresAt < now ? 'CREDIT_EXPIRED' : 'CREDIT_ACTIVE';
+
+      formattedPurchases.push({
+        id: usage.id,
+        status,
+        expiresAt: usage.expiresAt.toISOString(),
+        amount: 0,
+        accessType: 'CREDIT',
+        product: {
+          id: product.id,
+          title: product.title,
+          description: product.description || '',
+          fileUrl: product.fileUrl || '',
+          type: product.type,
+          thumbnail: product.thumbnail,
+          isFree: product.isFree,
+        },
+        productPricing: null,
+        purchaseId: usage.id,
+      });
+    }
+
+    formattedPurchases.sort((a, b) => new Date(b.expiresAt).getTime() - new Date(a.expiresAt).getTime());
 
     return NextResponse.json(formattedPurchases);
   } catch (error) {

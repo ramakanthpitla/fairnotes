@@ -8,8 +8,20 @@ export async function GET() {
         id: true,
         title: true,
         isActive: true,
-        price: true,
-        type: true
+        type: true,
+        isFree: true,
+        pageCount: true,
+        createdAt: true,
+        pricing: {
+          where: { isActive: true },
+          orderBy: { duration: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            duration: true,
+          },
+        },
       },
       take: 10
     });

@@ -1,12 +1,15 @@
 import { prisma } from '@/lib/prisma';
 import { ProductCard } from '@/components/product/card';
 import { Prisma } from '@prisma/client';
+import { requireAuth } from '@/lib/auth';
 
 export const metadata = {
   title: 'Browse Materials',
 };
 
 export default async function BrowsePage() {
+  // Require authentication to browse
+  await requireAuth();
   const products = await prisma.product.findMany({
     where: { isActive: true },
     orderBy: { createdAt: 'desc' },
