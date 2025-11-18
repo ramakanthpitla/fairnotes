@@ -3,26 +3,11 @@ import { headers } from 'next/headers';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
 
-// Disable body parsing since we need the raw body for signature verification
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-async function getRawBody(readable: any) {
-  const chunks = [];
-  for await (const chunk of readable) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-  }
-  return Buffer.concat(chunks);
-}
-
 export async function POST(req: Request) {
   try {
     // Get the raw body
-    const rawBody = await getRawBody(req.body);
-    const body = JSON.parse(rawBody.toString());
+    const rawBodyBuffer = Buffer.from(await req.arrayBuffer());
+    const body = JSON.parse(rawBodyBuffer.toString());
     
     // Get the signature from headers
     const headersList = headers();
@@ -47,7 +32,7 @@ export async function POST(req: Request) {
 
     const expectedSignature = crypto
       .createHmac('sha256', webhookSecret)
-      .update(rawBody)
+      .update(rawBodyBuffer)
       .digest('hex');
 
     if (signature !== expectedSignature) {

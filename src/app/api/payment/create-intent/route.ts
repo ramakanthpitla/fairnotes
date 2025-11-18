@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createPaymentIntent } from '@/lib/stripe';
-import { auth } from '@clerk/nextjs';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 
 export async function POST(request: Request) {
   try {
-    const { userId } = auth();
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id;
     if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
