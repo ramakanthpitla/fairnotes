@@ -217,6 +217,23 @@ export default function Home() {
           </div>
         </div>
       </section>
+      <footer className="border-t bg-background">
+        <div className="container mx-auto flex flex-col gap-4 px-4 py-8 text-center text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+          <p className="font-medium text-foreground">Need help? Email us at{' '}
+            <a className="text-primary underline underline-offset-4" href="mailto:fairnotes.helpdesk@gmail.com">
+              fairnotes.helpdesk@gmail.com
+            </a>
+          </p>
+          <div className="flex items-center justify-center gap-6">
+            <Link className="hover:text-primary underline underline-offset-4" href="/terms">
+              Terms &amp; Conditions
+            </Link>
+            <Link className="hover:text-primary underline underline-offset-4" href="/privacy">
+              Privacy Policy
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

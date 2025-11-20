@@ -35,7 +35,7 @@ export default function RootLayout({
               <NetworkStatus />
               <Toaster position="top-center" />
               <Navigation />
-              <main className="pt-15 md:pt-0">
+              <main className="pb-32 pt-[88px] md:pt-0 md:pb-0">
                 {children}
               </main>
             </LikedProductsProvider>

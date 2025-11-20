@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { recordProductView } from '@/lib/product-view-tracking';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -65,6 +66,8 @@ export async function GET(
         { status: 403 }
       );
     }
+
+    await recordProductView(session.user.id, product.id, 'CONTENT');
 
     // Get the file URL
     const fileUrl = product.fileUrl;

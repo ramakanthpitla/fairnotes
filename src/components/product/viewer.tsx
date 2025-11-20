@@ -31,37 +31,61 @@ export function ProductViewer({ product, productId: propProductId, type: propTyp
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
-    async function fetchUrl() {
+    if (!productId || !type) {
+      return;
+    }
+
+    const controller = new AbortController();
+    let completed = false;
+
+    const fetchUrl = async () => {
       try {
+        setLoading(true);
+        setError(null);
+
         if (!navigator.onLine) {
           setError('No internet connection. Please check your network.');
-          setLoading(false);
           return;
         }
 
-        const res = await fetch(`/api/products/${productId}/view`);
+        const res = await fetch(`/api/products/${productId}/view`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+
         if (!res.ok) {
-          const data = await res.json();
+          const data = await res.json().catch(() => ({}));
           throw new Error(data.error || 'Failed to load');
         }
+
         const { url: presignedUrl } = await res.json();
-        setUrl(presignedUrl);
-        
-        // No longer auto-enter fullscreen for PDFs
-        if (type === 'PDF') {
-          setLoading(false);
+
+        if (!controller.signal.aborted) {
+          setUrl(presignedUrl);
         }
       } catch (err: any) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
         if (!navigator.onLine) {
           setError('No internet connection. Please check your network.');
         } else {
           setError(err?.message || 'Failed to load content');
         }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+          completed = true;
+        }
       }
-    }
-    fetchUrl();
+    };
+
+    void fetchUrl();
+
+    return () => {
+      controller.abort();
+    };
   }, [productId, type]);
 
   const toggleFullscreen = async () => {

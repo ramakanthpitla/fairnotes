@@ -29,6 +29,9 @@ type Product = {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  viewCount: number;
+  purchaseCount: number;
+  activeCustomersCount: number;
   pricing: ProductPricing[];
 };
 
@@ -41,6 +44,8 @@ export function ProductsList({ initialProducts }: ProductsListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{id: string; title: string} | null>(null);
+  const [sortKey, setSortKey] = useState<'createdAt' | 'viewCount' | 'purchaseCount' | 'activeCustomersCount'>('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Debounced search
   useEffect(() => {
@@ -92,6 +97,52 @@ export function ProductsList({ initialProducts }: ProductsListProps) {
     }
   };
 
+  const toggleSort = (key: 'createdAt' | 'viewCount' | 'purchaseCount' | 'activeCustomersCount') => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+    } else {
+      setSortKey(key);
+      setSortDirection(key === 'createdAt' ? 'desc' : 'desc');
+    }
+  };
+
+  const sortedProducts = useMemo(() => {
+    const sorted = [...products];
+    sorted.sort((a, b) => {
+      let aValue: number;
+      let bValue: number;
+
+      switch (sortKey) {
+        case 'viewCount':
+          aValue = a.viewCount;
+          bValue = b.viewCount;
+          break;
+        case 'purchaseCount':
+          aValue = a.purchaseCount;
+          bValue = b.purchaseCount;
+          break;
+        case 'activeCustomersCount':
+          aValue = a.activeCustomersCount;
+          bValue = b.activeCustomersCount;
+          break;
+        case 'createdAt':
+        default:
+          aValue = new Date(a.createdAt).getTime();
+          bValue = new Date(b.createdAt).getTime();
+          break;
+      }
+
+      if (aValue === bValue) return 0;
+      return sortDirection === 'desc' ? bValue - aValue : aValue - bValue;
+    });
+    return sorted;
+  }, [products, sortKey, sortDirection]);
+
+  const renderSortIndicator = (key: 'createdAt' | 'viewCount' | 'purchaseCount' | 'activeCustomersCount') => {
+    if (sortKey !== key) return null;
+    return <span className="ml-1 text-xs">{sortDirection === 'desc' ? '▼' : '▲'}</span>;
+  };
+
   return (
     <>
       {/* Customer Modal */}
@@ -130,14 +181,29 @@ export function ProductsList({ initialProducts }: ProductsListProps) {
               <tr className="border-b">
                 <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">SKU</th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Title</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Type</th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('viewCount')}>
+                  Views
+                  {renderSortIndicator('viewCount')}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('purchaseCount')}>
+                  Purchases
+                  {renderSortIndicator('purchaseCount')}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('activeCustomersCount')}>
+                  Active Customers
+                  {renderSortIndicator('activeCustomersCount')}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('createdAt')}>
+                  Type
+                  {renderSortIndicator('createdAt')}
+                </th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Pricing Options</th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
                 <th className="px-6 py-3 text-right text-sm font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {products.map((product) => (
+              {sortedProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-muted/50">
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
                     {product.sku}
@@ -152,6 +218,9 @@ export function ProductsList({ initialProducts }: ProductsListProps) {
                       )}
                     </div>
                   </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm">{product.viewCount}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm">{product.purchaseCount}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm">{product.activeCustomersCount}</td>
                   <td className="whitespace-nowrap px-6 py-4 capitalize">{product.type}</td>
                   <td className="px-6 py-4">
                     {product.isFree ? (
@@ -210,9 +279,9 @@ export function ProductsList({ initialProducts }: ProductsListProps) {
                   </td>
                 </tr>
               ))}
-              {products.length === 0 && (
+              {sortedProducts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={8} className="px-6 py-8 text-center text-sm text-muted-foreground">
                     {searchQuery ? 'No products found matching your search.' : 'No products found.'}
                   </td>
                 </tr>

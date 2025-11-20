@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { PDFDocument } from 'pdf-lib';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { recordProductView } from '@/lib/product-view-tracking';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -71,6 +74,11 @@ export async function GET(
       );
     }
 
+    const session = await getServerSession(authOptions as any) as { user?: { id?: string } } | null;
+    if (session?.user?.id) {
+      await recordProductView(session.user.id, id, 'SAMPLE');
+    }
+
     console.log('[sample] loading source pdf', { fileUrl: product.fileUrl });
     const pdfBuffer = await loadPdfBuffer(product.fileUrl);
     console.log('[sample] pdf bytes', pdfBuffer.length);
@@ -109,7 +117,7 @@ export async function GET(
       'Access-Control-Expose-Headers': 'X-Total-Pages, X-Preview-Pages',
     });
 
-    return new NextResponse(previewBytes, { status: 200, headers });
+    return new NextResponse(Buffer.from(previewBytes), { status: 200, headers });
   } catch (error) {
     console.error('Error generating sample preview:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';

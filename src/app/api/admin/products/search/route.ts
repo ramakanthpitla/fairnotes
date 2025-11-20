@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthSession } from '@/lib/auth';
+import { enrichProductsWithMetrics } from '@/lib/admin/product-metrics';
 
 export async function GET(request: Request) {
   try {
@@ -20,15 +21,11 @@ export async function GET(request: Request) {
       // Return all products if no query
       const products = await prisma.product.findMany({
         orderBy: { createdAt: 'desc' },
-        include: {
-          pricing: {
-            where: { isActive: true },
-            orderBy: { duration: 'asc' },
-          },
-        },
       });
 
-      return NextResponse.json(products);
+      const enriched = await enrichProductsWithMetrics(products);
+
+      return NextResponse.json(enriched);
     }
 
     // Case-insensitive search across title, SKU, and description
@@ -57,16 +54,12 @@ export async function GET(request: Request) {
           },
         ],
       },
-      include: {
-        pricing: {
-          where: { isActive: true },
-          orderBy: { duration: 'asc' },
-        },
-      },
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json(products);
+    const enriched = await enrichProductsWithMetrics(products);
+
+    return NextResponse.json(enriched);
   } catch (error) {
     console.error('Error searching products:', error);
     return NextResponse.json(

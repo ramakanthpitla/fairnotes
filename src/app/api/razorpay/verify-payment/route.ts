@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getServerSession } from 'next-auth';
+import { Prisma } from '@prisma/client';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 
@@ -68,26 +69,29 @@ export async function POST(request: Request) {
     }
 
     // Get the purchase and pricing plan to calculate expiry
-    const purchase = await prisma.purchase.findUnique({
-      where: { id: payment.purchaseId || undefined }
-    });
+    const purchase = payment.purchaseId
+      ? await prisma.purchase.findUnique({
+          where: { id: payment.purchaseId }
+        })
+      : null;
 
     if (!purchase) {
       throw new Error('Purchase not found');
     }
 
     // Get the pricing plan to determine duration
-    const pricingPlan = await prisma.productPricing.findUnique({
-      where: { id: purchase.productPricingId }
-    });
+    const pricingPlan = purchase.productPricingId
+      ? await prisma.productPricing.findUnique({
+          where: { id: purchase.productPricingId }
+        })
+      : null;
 
     // Calculate expiry date based on plan duration or default to 30 days
     const durationInDays = pricingPlan?.duration || 30;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + durationInDays);
 
-    // Update the purchase and payment status to COMPLETED
-    await Promise.all([
+    const updatePromises: Prisma.PrismaPromise<unknown>[] = [
       prisma.purchase.update({
         where: { id: purchase.id },
         data: {
@@ -104,12 +108,30 @@ export async function POST(request: Request) {
           updatedAt: new Date()
         }
       })
-    ]);
+    ];
+
+    if (purchase.productId) {
+      updatePromises.push(
+        prisma.product.update({
+          where: { id: purchase.productId },
+          data: {
+            // Prisma types may lag immediately after schema changes, so cast
+            purchaseCount: {
+              increment: 1
+            }
+          } as unknown as Prisma.ProductUncheckedUpdateInput
+        })
+      );
+    }
+
+    await Promise.all(updatePromises);
 
     // Get product details for response
-    const product = await prisma.product.findUnique({
-      where: { id: purchase.productId }
-    });
+    const product = purchase.productId
+      ? await prisma.product.findUnique({
+          where: { id: purchase.productId }
+        })
+      : null;
 
     return NextResponse.json({
       success: true,
