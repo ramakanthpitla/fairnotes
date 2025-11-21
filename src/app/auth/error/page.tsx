@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
-export default function AuthErrorPage() {
+function AuthErrorContent() {
   const searchParams = useSearchParams();
   const error = searchParams?.get('error');
-  
+
   // Common OAuth errors and their user-friendly messages
   const errorMessages: Record<string, string> = {
     Configuration: 'There is a problem with the server configuration.',
@@ -40,18 +40,18 @@ export default function AuthErrorPage() {
             </div>
           )}
         </div>
-        
+
         <div className="pt-4">
           <Button asChild className="w-full">
             <Link href="/auth/signin">
               Back to Sign In
             </Link>
           </Button>
-          
+
           <p className="mt-4 text-sm text-muted-foreground">
             Need help?{' '}
-            <a 
-              href="mailto:support@studymart.com" 
+            <a
+              href="mailto:support@studymart.com"
               className="text-primary underline underline-offset-4 hover:text-primary/80"
             >
               Contact support
@@ -60,5 +60,24 @@ export default function AuthErrorPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AuthErrorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+          <div className="w-full max-w-md space-y-6 rounded-lg border bg-card p-8 text-center">
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold">Loading...</h1>
+              <p className="text-muted-foreground">Please wait...</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <AuthErrorContent />
+    </Suspense>
   );
 }
