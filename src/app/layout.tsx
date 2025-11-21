@@ -11,7 +11,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'StudyMart - Your Learning Platform',
+  title: 'FairNotes - Your Learning Platform',
   description: 'Access premium study materials including PDFs and video courses.',
 };
 

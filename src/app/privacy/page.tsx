@@ -39,8 +39,8 @@ export default function PrivacyPolicyPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold">4. Purchases &amp; Payments</h2>
           <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-            <li>Payments are processed through secure third-party providers such as Stripe or Razorpay.</li>
-            <li>FairNotes does not store full payment details like card numbers or CVV codes.</li>
+            <li>Payments are processed through secure third-party provider Razorpay.</li>
+            <li>FairNotes does not store full payment details like card numbers or CVV code.</li>
           </ul>
         </section>
 

@@ -39,9 +39,9 @@ export interface PaymentSectionProps {
   isPurchased?: boolean;
 }
 
-export function PaymentSection({ 
-  product, 
-  razorpayKey, 
+export function PaymentSection({
+  product,
+  razorpayKey,
   selectedPlanId,
   onPurchaseSuccess,
   isPurchased = false
@@ -50,7 +50,7 @@ export function PaymentSection({
   const { data: session } = useSession();
   const [isSampleOpen, setIsSampleOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const scrollToSample = (e: React.MouseEvent) => {
     e.preventDefault();
     const sampleSection = document.getElementById('sample-section');
@@ -75,7 +75,7 @@ export function PaymentSection({
     console.log('Payment successful:', paymentId);
     const selectedPlan = selectedPlanId ? product.pricingPlans?.find((p: PricingPlan) => p.id === selectedPlanId) : null;
     const amount = product.isFree ? 0 : (selectedPlan ? selectedPlan.price : 0);
-    
+
     const purchaseData = {
       id: product.id,
       description: `Purchase of ${product.title}${selectedPlan ? ` - ${selectedPlan.name}` : ''}`,
@@ -87,30 +87,30 @@ export function PaymentSection({
         planDuration: selectedPlan?.duration?.toString() || undefined,
       },
     };
-    
-    const filteredPurchaseData = JSON.parse(JSON.stringify(purchaseData, (key, value) => 
+
+    const filteredPurchaseData = JSON.parse(JSON.stringify(purchaseData, (key, value) =>
       value === undefined ? undefined : value
     ));
-    
+
     localStorage.setItem('lastPurchasedProduct', JSON.stringify(filteredPurchaseData));
-    
+
     if (onPurchaseSuccess) {
       onPurchaseSuccess(paymentId);
     }
-    
+
     router.push(`/payment/success?payment_id=${paymentId}`);
   }, [selectedPlanId, product, onPurchaseSuccess, router]);
 
   const handleBuyNow = async (e: React.MouseEvent) => {
     e.preventDefault();
-    
+
     if (isLoading) return; // Prevent multiple clicks
-    
+
     if (!session) {
       router.push('/login?callbackUrl=' + encodeURIComponent(window.location.href));
       return;
     }
-    
+
     // Set cursor to wait
     document.body.style.cursor = 'wait';
     setIsLoading(true);
@@ -122,14 +122,14 @@ export function PaymentSection({
       return;
     }
 
-    const selectedPlan = selectedPlanId 
+    const selectedPlan = selectedPlanId
       ? product.pricingPlans?.find((p: { id: string | null | undefined; }) => p.id === selectedPlanId)
       : null;
-    
+
     try {
       // Calculate the final price with validation
       const price = selectedPlan ? selectedPlan.price : 0;
-      
+
       // Validate price is a valid number
       if (price === undefined || price === null) {
         throw new Error('Price is not available for this product');
@@ -149,28 +149,28 @@ export function PaymentSection({
       }
 
       const amountInPaise = Math.round(priceNumber * 100);
-      
+
       // Prepare the request data
       const requestData = {
         productId: product.id,
         amount: amountInPaise,
         currency: 'INR',
         productName: product.title,
-        productDescription: selectedPlan 
-          ? `${product.title} - ${selectedPlan.name} Plan` 
+        productDescription: selectedPlan
+          ? `${product.title} - ${selectedPlan.name} Plan`
           : product.description || product.title,
         planId: selectedPlan?.id
       };
-      
+
       console.log('Sending request to create order:', {
         ...requestData,
         amount: `${amountInPaise} (${priceNumber} in base units)`
       });
-      
+
       // Create order on the server
       const response = await fetch('/api/razorpay/create-order', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
@@ -196,7 +196,7 @@ export function PaymentSection({
         // Handle 400 Bad Request specifically
         if (response.status === 400) {
           let errorMessage = 'Invalid request';
-          
+
           if ((errorData as any).code === 'ALREADY_PURCHASED') {
             toast.info('You already own this product');
             setIsLoading(false);
@@ -219,19 +219,19 @@ export function PaymentSection({
           } else if ((errorData as any).error) {
             errorMessage = (errorData as any).error;
           }
-          
+
           console.error('Validation error:', errorMessage);
           toast.error(errorMessage);
           setIsLoading(false);
           document.body.style.cursor = 'default';
           return;
         }
-        
+
         // For other error statuses
-        const errorMessage = (errorData as any).message || 
-                           (errorData as any).error || 
-                           `Failed to create order (${response.status})`;
-        
+        const errorMessage = (errorData as any).message ||
+          (errorData as any).error ||
+          `Failed to create order (${response.status})`;
+
         toast.error(errorMessage);
         setIsLoading(false);
         document.body.style.cursor = 'default';
@@ -239,7 +239,7 @@ export function PaymentSection({
       }
 
       const order = await response.json();
-      
+
       // Load Razorpay script if not already loaded
       if (!window.Razorpay) {
         try {
@@ -304,9 +304,9 @@ export function PaymentSection({
         key: razorpayKey,
         amount: order.amount,
         currency: order.currency || 'INR',
-        name: 'StudyMart',
-        description: selectedPlan 
-          ? `${product.title} - ${selectedPlan.name} Plan` 
+        name: 'FairNotes',
+        description: selectedPlan
+          ? `${product.title} - ${selectedPlan.name} Plan`
           : product.description || product.title,
         order_id: order.id,
         theme: {
@@ -338,7 +338,7 @@ export function PaymentSection({
                 });
 
                 const result = await verifyResponse.json();
-                
+
                 if (!verifyResponse.ok) {
                   console.error('Payment verification failed:', result);
                   throw new Error(result.error || 'Payment verification failed');
@@ -348,7 +348,7 @@ export function PaymentSection({
                 if (onPurchaseSuccess) {
                   onPurchaseSuccess(response.razorpay_payment_id);
                 }
-                
+
                 // Redirect to success page
                 router.push(`/payment/success?payment_id=${response.razorpay_payment_id}`);
               } else {
@@ -370,7 +370,7 @@ export function PaymentSection({
           contact: ''
         },
         notes: {
-          address: 'StudyMart Digital Product',
+          address: 'FairNotes Digital Product',
           product_id: product.id,
           plan_id: selectedPlan?.id,
           user_id: (session && session.user && session.user.email) || 'unknown'
@@ -379,16 +379,16 @@ export function PaymentSection({
 
       // Add error handler for payment failures
       const rzp = new (window as any).Razorpay(options);
-      
+
       rzp.on('payment.failed', function (response: any) {
         console.error('Payment failed:', response.error);
         toast.error(`Payment failed: ${response.error?.description || 'Unknown error'}`);
         setIsLoading(false);
         document.body.style.cursor = 'default';
       });
-      
+
       rzp.open();
-      
+
       // Reset cursor after opening the modal
       document.body.style.cursor = 'default';
     } catch (error) {
@@ -405,7 +405,7 @@ export function PaymentSection({
       <div className="flex flex-col sm:flex-row gap-3 pt-2">
         <div className="w-full">
           <Link href={`/products/${product.id}/view`} className="w-full">
-            <Button 
+            <Button
               className="w-full py-6 text-lg font-semibold bg-green-600 hover:bg-green-700"
             >
               <CheckCircle className="w-5 h-5 mr-2" />
@@ -442,14 +442,14 @@ export function PaymentSection({
 
   const selectedPlan = selectedPlanId ? product.pricingPlans?.find((p: PricingPlan) => p.id === selectedPlanId) : null;
   const amount = product.isFree ? 0 : (selectedPlan ? selectedPlan.price : 0) * 100;
-  
+
   // Check if the product is free
   const isFreeProduct = product.isFree || amount === 0;
 
   return (
     <div className="flex flex-col sm:flex-row gap-3 pt-2">
       <div className="w-full">
-        <Button 
+        <Button
           onClick={isFreeProduct ? () => onPurchaseSuccess?.('free') : handleBuyNow}
           className={`w-full py-6 text-lg font-semibold ${isLoading ? 'opacity-75' : ''} ${isFreeProduct ? 'bg-green-600 hover:bg-green-700' : 'bg-primary hover:bg-primary/90'}`}
           disabled={isLoading}
@@ -476,8 +476,8 @@ export function PaymentSection({
         </Button>
       </div>
       {product.type === 'PDF' && (
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="py-6 text-lg"
           onClick={handleSampleClick}
         >
@@ -487,7 +487,7 @@ export function PaymentSection({
           View Sample
         </Button>
       )}
-      
+
       {product.type === 'PDF' && product.fileUrl && (
         <PDFSampleViewer
           fileUrl={product.fileUrl}

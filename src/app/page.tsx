@@ -51,7 +51,7 @@ export default function Home() {
       <section id="features" className="py-20 bg-background">
         <div className="container px-4 mx-auto">
           <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="mb-4 text-3xl font-bold md:text-4xl">Why Choose StudyMart?</h2>
+            <h2 className="mb-4 text-3xl font-bold md:text-4xl">Why Choose FairNotes?</h2>
             <p className="text-muted-foreground">
               We provide the best learning experience with our premium content and features.
             </p>
@@ -140,7 +140,7 @@ export default function Home() {
         <div className="container px-4 mx-auto text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to boost your learning?</h2>
           <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Join thousands of students who are already accelerating their learning with StudyMart.
+            Join thousands of students who are already accelerating their learning with FairNotes.
           </p>
           <Button size="lg" asChild>
             <Link href={session ? '/browse' : '/auth/signin'}>
@@ -173,7 +173,7 @@ export default function Home() {
                   <p className="text-white/70 mb-6">
                     Share your quality study materials with the community and earn credits to unlock any product for 60 days!
                   </p>
-                  
+
                   <div className="space-y-4 mb-6">
                     <div className="flex items-start gap-3">
                       <div className="bg-white/10 p-2 rounded-lg backdrop-blur">
@@ -184,7 +184,7 @@ export default function Home() {
                         <p className="text-sm text-white/70">Submit high-quality study materials</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-start gap-3">
                       <div className="bg-white/10 p-2 rounded-lg backdrop-blur">
                         <Award className="w-5 h-5 text-blue-200" />
@@ -194,7 +194,7 @@ export default function Home() {
                         <p className="text-sm text-white/70">Our team reviews and approves quality content</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-start gap-3">
                       <div className="bg-white/10 p-2 rounded-lg backdrop-blur">
                         <Gift className="w-5 h-5 text-green-200" />

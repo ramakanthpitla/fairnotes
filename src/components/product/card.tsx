@@ -49,14 +49,14 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
   const { data: session, status } = useSession();
   const { liked, isLiked, toggleLike } = useLikedProducts();
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(
-    product.pricingPlans?.filter(plan => plan.isActive).length > 0 
-      ? product.pricingPlans?.filter(plan => plan.isActive)[0].id 
+    product.pricingPlans?.filter(plan => plan.isActive).length > 0
+      ? product.pricingPlans?.filter(plan => plan.isActive)[0].id
       : null
   );
   const [loading, setLoading] = useState(false);
   const [isPurchased, setIsPurchased] = useState(initialIsPurchased);
   const [purchaseExpired, setPurchaseExpired] = useState(false);
-  
+
   const loadRazorpay = () => {
     return new Promise((resolve) => {
       if (window.Razorpay) {
@@ -89,24 +89,24 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
     }
 
     setLoading(true);
-    
+
     try {
       // Calculate amount based on selected plan
       const selectedPlan = product.pricingPlans?.find(plan => plan.id === selectedPlanId);
-      
+
       if (!selectedPlan && !product.isFree) {
         throw new Error('Please select a pricing plan');
       }
-      
+
       const amount = selectedPlan?.price || 0;
       const amountInPaise = Math.round(amount * 100); // Convert to paise and ensure it's an integer
-      
+
       if (!product.isFree && (isNaN(amount) || amount <= 0)) {
         throw new Error('Invalid product price');
       }
 
-      const productDescription = selectedPlan 
-        ? `${product.title} - ${selectedPlan.name}` 
+      const productDescription = selectedPlan
+        ? `${product.title} - ${selectedPlan.name}`
         : product.title;
 
       console.log('Creating order with:', {
@@ -137,22 +137,22 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
           const errorText = await response.text();
           errorData = errorText ? JSON.parse(errorText) : {};
           console.error('Order creation failed with status:', response.status, errorData);
-          
+
           if (errorData.code === 'AUTH_REQUIRED') {
             router.push('/login?callbackUrl=' + encodeURIComponent(window.location.href));
             return;
           }
-          
+
           if (errorData.code === 'ALREADY_PURCHASED') {
             toast.info('You already own this product');
             return;
           }
-          
+
           if (errorData.code === 'INVALID_PRICE') {
             toast.error('The product price is invalid. Please refresh the page and try again.');
             return;
           }
-          
+
           throw new Error(errorData.message || errorData.error || 'Failed to create order');
         } catch (e) {
           console.error('Error processing error response:', e);
@@ -177,7 +177,7 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency || 'INR',
-        name: 'StudyMart',
+        name: 'FairNotes',
         description: productDescription,
         order_id: order.id,
         handler: async function (response: any) {
@@ -232,7 +232,7 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
 
       const rzp = new (window as any).Razorpay(options);
       rzp.open();
-      
+
     } catch (error) {
       console.error('Payment error:', error);
       toast.error(error instanceof Error ? error.message : 'Payment failed. Please try again.');
@@ -246,7 +246,7 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
       }, 1000);
     }
   };
-  
+
   // For backward compatibility with products that don't have pricing plans yet
   const activePlans = product.pricingPlans?.filter(plan => plan.isActive) || [];
   const hasPricingPlans = activePlans.length > 0;
@@ -261,12 +261,12 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ 
-              userId: session?.user?.id, 
-              productId: product.id 
+            body: JSON.stringify({
+              userId: session?.user?.id,
+              productId: product.id
             }),
           });
-          
+
           if (response.ok) {
             const { hasPurchased, isValid, expiresAt } = await response.json();
             setIsPurchased(hasPurchased);
@@ -338,9 +338,9 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
           </div>
         )}
       </div>
-      
+
       <div className="aspect-[16/9] bg-muted relative overflow-hidden">
-        <ProductThumbnail 
+        <ProductThumbnail
           product={{
             thumbnail: product.thumbnail,
             title: product.title,
@@ -348,7 +348,7 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
           className="w-full h-full"
         />
       </div>
-      
+
       <div className="p-4 space-y-2">
         <div className="flex items-start justify-between">
           <h3 className="font-semibold line-clamp-1 pr-2">{product.title}</h3>
@@ -356,10 +356,10 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
             {product.type}
           </span>
         </div>
-        
+
         <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
         <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
-        
+
         {!isFreeOrPurchased && (
           <div className="space-y-2">
             {hasPricingPlans ? (
@@ -369,11 +369,10 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
                     key={plan.id}
                     type="button"
                     onClick={() => setSelectedPlanId(plan.id)}
-                    className={`text-left p-2 rounded-md border ${
-                      selectedPlanId === plan.id
+                    className={`text-left p-2 rounded-md border ${selectedPlanId === plan.id
                         ? 'border-primary bg-primary/10'
                         : 'border-muted hover:bg-muted/50'
-                    } transition-colors`}
+                      } transition-colors`}
                   >
                     <div className="font-medium">{plan.name}</div>
                     <div className="flex justify-between items-center">
@@ -399,10 +398,10 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
             )}
           </div>
         )}
-        
+
         <div className="flex items-center justify-between pt-2">
           <div className="text-lg font-semibold">
-            {isFreeOrPurchased 
+            {isFreeOrPurchased
               ? (product.isFree ? 'Free' : 'Available')
               : selectedPlan
                 ? `₹${selectedPlan.price}`
@@ -414,7 +413,7 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
             </div>
           )}
         </div>
-        
+
         <div className="flex gap-2 mt-4">
           {isFreeOrPurchased ? (
             <Link
@@ -434,11 +433,10 @@ export function ProductCard({ product, isPurchased: initialIsPurchased = false, 
               <button
                 onClick={handleBuyNow}
                 disabled={hasPricingPlans && !selectedPlanId}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${
-                  hasPricingPlans && !selectedPlanId 
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium ${hasPricingPlans && !selectedPlanId
                     ? 'bg-muted text-muted-foreground cursor-not-allowed'
                     : 'bg-blue-600 text-white hover:bg-blue-700'
-                } shadow-sm transition-colors`}
+                  } shadow-sm transition-colors`}
               >
                 {hasPricingPlans ? (selectedPlanId ? 'Buy Now' : 'Select Plan') : 'Buy Now'}
               </button>
