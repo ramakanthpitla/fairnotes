@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import ProductDetailContent from './product-detail-content';
 
@@ -37,7 +37,7 @@ function Loading() {
   );
 }
 
-export default function ProductDetailPage() {
+function ProductDetailPageContent() {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export default function ProductDetailPage() {
 
         const data = await response.json();
         setProduct(data);
-        
+
         // Check if user has purchased this product
         if (!data.isFree) {
           try {
@@ -73,7 +73,7 @@ export default function ProductDetailPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ productId }),
             });
-            
+
             if (purchaseResponse.ok) {
               const { hasPurchased } = await purchaseResponse.json();
               setIsPurchased(hasPurchased);
@@ -134,12 +134,20 @@ export default function ProductDetailPage() {
   return (
     <div className="container mx-auto py-8 px-4">
       {product && (
-        <ProductDetailContent 
-          product={productData} 
+        <ProductDetailContent
+          product={productData}
           initialPlanId={initialPlanId}
           isPurchased={isPurchased}
         />
       )}
     </div>
+  );
+}
+
+export default function ProductDetailPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ProductDetailPageContent />
+    </Suspense>
   );
 }

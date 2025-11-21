@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { FcGoogle } from 'react-icons/fc';
@@ -12,7 +12,7 @@ declare global {
   }
 }
 
-export default function SignInPage() {
+function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const error = searchParams?.get('error');
@@ -23,7 +23,7 @@ export default function SignInPage() {
   useEffect(() => {
     if (error) {
       const normalized = String(error).toLowerCase();
-      
+
       // Handle different types of OAuth errors
       if (normalized.includes('oauth') || normalized.includes('callback')) {
         setErrorMessage('Failed to sign in with the selected provider. Please try again.');
@@ -32,7 +32,7 @@ export default function SignInPage() {
       } else {
         setErrorMessage('Authentication failed. Please try again.');
       }
-      
+
       // Clear the error from URL to prevent showing it again on refresh
       const url = new URL(window.location.href);
       url.searchParams.delete('error');
@@ -41,7 +41,7 @@ export default function SignInPage() {
   }, [error]);
 
   const { data: session } = useSession();
-  
+
   useEffect(() => {
     // If user is already signed in, redirect to 
     if (session) {
@@ -71,14 +71,14 @@ export default function SignInPage() {
             {error && <p className="mt-1 text-xs opacity-75">Error code: {error}</p>}
           </div>
         )}
-        
+
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold">Welcome Back</h1>
           <p className="text-muted-foreground">
             Sign in to access your account and continue learning
           </p>
         </div>
-        
+
         <div className="space-y-4">
           <Button
             variant="outline"
@@ -101,7 +101,7 @@ export default function SignInPage() {
               </>
             )}
           </Button>
-          
+
           <p className="text-center text-sm text-muted-foreground">
             By continuing, you agree to our{' '}
             <a href="/terms" className="underline underline-offset-4 hover:text-primary">
@@ -116,5 +116,24 @@ export default function SignInPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background p-4">
+          <div className="w-full max-w-md space-y-6 rounded-lg border bg-card p-8 shadow-md">
+            <div className="space-y-2 text-center">
+              <h1 className="text-3xl font-bold">Loading...</h1>
+              <p className="text-muted-foreground">Please wait...</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <SignInContent />
+    </Suspense>
   );
 }
