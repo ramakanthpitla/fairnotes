@@ -231,6 +231,12 @@ export default function Home() {
             <Link className="hover:text-primary underline underline-offset-4" href="/privacy">
               Privacy Policy
             </Link>
+            <Link className="hover:text-primary underline underline-offset-4" href="/refund-policy">
+              Refund Policy
+            </Link>
+            <Link className="hover:text-primary underline underline-offset-4" href="/contact">
+              Contact Us
+            </Link>
           </div>
         </div>
       </footer>
