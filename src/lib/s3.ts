@@ -1,4 +1,4 @@
-import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 // Initialize S3 client
 const s3Client = new S3Client({
@@ -8,6 +8,33 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
 });
+
+/**
+ * Ensure a folder exists in S3 by creating a marker file
+ * @param folderPath - Path like "user-submissions/" or "uploads/"
+ * @returns Promise<boolean> - true if successful
+ */
+export async function ensureS3FolderExists(folderPath: string): Promise<boolean> {
+  try {
+    const bucket = process.env.AWS_S3_BUCKET!;
+    const markerKey = `${folderPath}.folder_marker`;
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: markerKey,
+        Body: Buffer.from(''),
+        ContentType: 'application/x-empty',
+      })
+    );
+
+    console.log('S3 FOLDER CREATED:', folderPath);
+    return true;
+  } catch (err) {
+    console.error('S3 FOLDER CREATION ERROR:', err);
+    return false;
+  }
+}
 
 /**
  * Delete a file from S3 bucket

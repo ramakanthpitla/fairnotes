@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { ensureS3FolderExists } from '@/lib/s3';
 
 export async function POST(request: Request) {
   try {
@@ -52,6 +53,9 @@ export async function POST(request: Request) {
       region,
       credentials: { accessKeyId, secretAccessKey },
     });
+
+    // Ensure the user-submissions folder exists
+    await ensureS3FolderExists('user-submissions/');
 
     // Generate unique key for the upload
     const timestamp = Date.now();
