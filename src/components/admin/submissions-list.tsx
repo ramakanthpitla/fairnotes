@@ -67,7 +67,7 @@ export function SubmissionsList({ initialSubmissions }: Props) {
       }
 
       const data = await res.json();
-      
+
       setSubmissions((prev) =>
         prev.map((s) =>
           s.id === selectedSubmission.id
@@ -189,7 +189,7 @@ export function SubmissionsList({ initialSubmissions }: Props) {
                     <FileText className="w-5 h-5 text-muted-foreground" />
                     <h3 className="font-semibold text-lg">{submission.title}</h3>
                   </div>
-                  
+
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                     <User className="w-4 h-4" />
                     <span>{submission.user.name || submission.user.email}</span>
@@ -265,8 +265,8 @@ export function SubmissionsList({ initialSubmissions }: Props) {
 
       {/* View PDF Dialog - Full Screen */}
       <Dialog open={viewDialog} onOpenChange={setViewDialog}>
-        <DialogContent className="fixed inset-0 max-w-none w-screen h-screen m-0 p-0 rounded-none bg-black/95 flex flex-col border-0">
-          <DialogHeader className="p-4 bg-slate-900 border-b border-slate-700">
+        <DialogContent className="fixed inset-0 max-w-none w-screen h-screen m-0 p-0 rounded-none bg-black flex flex-col border-0 z-50">
+          <DialogHeader className="p-3 md:p-4 bg-slate-900 border-b border-slate-700 flex-shrink-0">
             <div className="flex items-center justify-between w-full gap-4">
               <div className="flex-1 min-w-0">
                 <DialogTitle className="text-base md:text-lg truncate text-white">{selectedSubmission?.title}</DialogTitle>
@@ -276,19 +276,20 @@ export function SubmissionsList({ initialSubmissions }: Props) {
               </div>
               <button
                 onClick={() => setViewDialog(false)}
-                className="text-slate-400 hover:text-white transition-colors flex-shrink-0"
+                className="text-slate-400 hover:text-white transition-colors flex-shrink-0 text-2xl leading-none w-8 h-8 flex items-center justify-center"
+                aria-label="Close"
               >
                 ✕
               </button>
             </div>
           </DialogHeader>
           {selectedSubmission && (
-            <div className="flex-1 w-full overflow-hidden">
+            <div className="flex-1 w-full min-h-0 bg-slate-800">
               <iframe
-                src={`${selectedSubmission.pdfUrl}#toolbar=1&navpanes=0`}
-                className="w-full h-full border-0"
+                src={`${selectedSubmission.pdfUrl}#view=FitH&toolbar=1&navpanes=1&scrollbar=1`}
+                className="w-full h-full border-0 block"
                 title="PDF Preview"
-                allow="fullscreen"
+                style={{ minHeight: '100%' }}
               />
             </div>
           )}
