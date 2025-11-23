@@ -211,10 +211,6 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         <DeleteProductButton
           productId={product!.id}
           productTitle={product!.title}
-          onDelete={async () => {
-            'use server';
-            await deleteProduct(product!.id);
-          }}
         />
       </div>
 

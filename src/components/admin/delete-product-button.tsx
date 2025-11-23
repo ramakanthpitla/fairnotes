@@ -3,17 +3,14 @@
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useTransition } from 'react';
 
 interface DeleteProductButtonProps {
     productId: string;
     productTitle: string;
-    onDelete: () => Promise<void>;
 }
 
-export function DeleteProductButton({ productId, productTitle, onDelete }: DeleteProductButtonProps) {
+export function DeleteProductButton({ productId, productTitle }: DeleteProductButtonProps) {
     const router = useRouter();
-    const [isPending, startTransition] = useTransition();
     const [isDeleting, setIsDeleting] = useState(false);
 
     const handleDelete = async () => {
@@ -28,14 +25,21 @@ export function DeleteProductButton({ productId, productTitle, onDelete }: Delet
         setIsDeleting(true);
 
         try {
-            startTransition(async () => {
-                await onDelete();
-                router.push('/admin/products');
-                router.refresh();
+            const response = await fetch(`/api/admin/products/delete?id=${productId}`, {
+                method: 'DELETE',
             });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to delete product');
+            }
+
+            // Success - redirect to products list
+            router.push('/admin/products');
+            router.refresh();
         } catch (error) {
             console.error('Error deleting product:', error);
-            alert('Failed to delete product. Please try again.');
+            alert(error instanceof Error ? error.message : 'Failed to delete product. Please try again.');
             setIsDeleting(false);
         }
     };
@@ -45,9 +49,9 @@ export function DeleteProductButton({ productId, productTitle, onDelete }: Delet
             type="button"
             variant="destructive"
             onClick={handleDelete}
-            disabled={isPending || isDeleting}
+            disabled={isDeleting}
         >
-            {isPending || isDeleting ? 'Deleting...' : 'Delete Product'}
+            {isDeleting ? 'Deleting...' : 'Delete Product'}
         </Button>
     );
 }
