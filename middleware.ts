@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isAdminPath = pathname.startsWith('/admin');
 
-  // Allow public paths
+  // Allow public paths and API routes that handle their own auth
   const isPublicPath = publicPaths.some(path => {
     if (path.includes('[') && path.includes(']')) {
       // Handle dynamic routes like '/products/[id]'
@@ -36,6 +36,7 @@ export async function middleware(request: NextRequest) {
     return pathname === path || pathname.startsWith(`${path}/`);
   });
 
+  // Skip middleware for next.js internals and paths that handle their own auth
   if (
     isPublicPath ||
     pathname.startsWith('/_next/') ||
@@ -45,19 +46,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Get token for protected routes
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET
   });
 
-  // If no token, redirect to signin
+  // If no token, redirect to signin (for non-API routes)
   if (!token) {
+    if (pathname.startsWith('/api/')) {
+      // Let API routes handle auth errors
+      return NextResponse.next();
+    }
     const signInUrl = new URL('/auth/signin', request.url);
     signInUrl.searchParams.set('callbackUrl', encodeURI(request.url));
     return NextResponse.redirect(signInUrl);
   }
 
-  // Check admin access
+  // Check admin access for admin UI paths
   if (isAdminPath && token.role !== 'ADMIN') {
     const homeUrl = new URL('/', request.url);
     return NextResponse.redirect(homeUrl);
