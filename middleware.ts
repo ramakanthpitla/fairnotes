@@ -12,7 +12,8 @@ const publicPaths = [
   '/products',
   '/products/[id]',
   '/api/products',
-  '/api/products/[id]'
+  '/api/products/[id]',
+  '/api/thumbnails',
 ];
 
 const adminPaths = [
@@ -23,7 +24,7 @@ const adminPaths = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isAdminPath = pathname.startsWith('/admin');
-  
+
   // Allow public paths
   const isPublicPath = publicPaths.some(path => {
     if (path.includes('[') && path.includes(']')) {
@@ -35,7 +36,7 @@ export async function middleware(request: NextRequest) {
   });
 
   if (
-    isPublicPath || 
+    isPublicPath ||
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/api/auth/') ||
     pathname.startsWith('/_next/static/')
@@ -43,7 +44,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = await getToken({ 
+  const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET
   });
