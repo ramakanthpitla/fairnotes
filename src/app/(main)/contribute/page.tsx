@@ -78,9 +78,10 @@ export default function ContributePage() {
         return;
       }
       
-      if (selectedFile.size > 50 * 1024 * 1024) { // 50MB limit
-        console.error('❌ File too large:', selectedFile.size);
-        toast.error('File size must be less than 50MB');
+      const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB limit
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        console.error('❌ File too large:', selectedFile.size, `Max: ${MAX_FILE_SIZE}`);
+        toast.error(`File size must be less than 200MB (Current: ${(selectedFile.size / (1024 * 1024)).toFixed(2)}MB)`);
         return;
       }
       
@@ -302,7 +303,7 @@ export default function ContributePage() {
           </div>
 
           <div>
-            <Label htmlFor="pdf-file">PDF File (Max 50MB)</Label>
+            <Label htmlFor="pdf-file">PDF File (Max 200MB)</Label>
             <div className="mt-2">
               <Input
                 id="pdf-file"
@@ -346,7 +347,7 @@ export default function ContributePage() {
             )}
           </Button>
           <div className="mt-2 text-xs text-muted-foreground">
-            Status: {uploading ? 'Uploading' : 'Ready'} | File: {file ? '✓' : '✗'} | Title: {title.trim() ? '✓' : '✗'} | Rights: {ownsRights ? '✓' : '✗'}
+            Status: {uploading ? 'Uploading...' : 'Ready'} | File: {file ? `✓ (${(file.size / (1024 * 1024)).toFixed(2)}MB)` : '✗'} | Title: {title.trim() ? '✓' : '✗'} | Rights: {ownsRights ? '✓' : '✗'}
           </div>
         </form>
       </Card>
