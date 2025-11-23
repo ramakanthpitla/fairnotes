@@ -119,7 +119,9 @@ export default function ContributePage() {
         throw new Error(errorData.error || 'Failed to get presigned URL');
       }
 
-      const { url, key } = await presignedRes.json();
+      const { url, key, publicUrl } = await presignedRes.json();
+      
+      console.log('🔗 Presigned URL response:', { key, publicUrl });
 
       const s3Response = await fetch(url, {
         method: 'PUT',
@@ -135,12 +137,14 @@ export default function ContributePage() {
         throw new Error(`S3 upload failed: ${s3Response.status} ${responseText}`.trim());
       }
 
+      console.log('✅ File uploaded to S3');
+
       const submitRes = await fetch('/api/user/submit-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
-          pdfUrl: key,
+          pdfUrl: publicUrl,  // Use full publicUrl, not just key
         }),
       });
 

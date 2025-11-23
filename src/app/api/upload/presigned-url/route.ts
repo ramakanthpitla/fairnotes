@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const key = `user-submissions/${userId}/${timestamp}-${sanitizedFileName}`;
     
-    console.log('🔑 Generated S3 key:', key);
+    console.log('📤 Generating presigned URL:', { userId, key, bucket, region });
 
     // Create presigned URL for PUT operation
     const command = new PutObjectCommand({
