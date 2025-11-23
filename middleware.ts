@@ -14,7 +14,6 @@ const publicPaths = [
   '/api/products',
   '/api/products/[id]',
   '/api/thumbnails',
-  '/api/admin', // Allow API routes to handle their own auth
 ];
 
 const adminPaths = [
@@ -41,6 +40,7 @@ export async function middleware(request: NextRequest) {
     isPublicPath ||
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/api/') ||  // Let all API routes handle their own auth
     pathname.startsWith('/_next/static/')
   ) {
     return NextResponse.next();
@@ -52,12 +52,8 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET
   });
 
-  // If no token, redirect to signin (for non-API routes)
+  // If no token, redirect to signin
   if (!token) {
-    if (pathname.startsWith('/api/')) {
-      // Let API routes handle auth errors
-      return NextResponse.next();
-    }
     const signInUrl = new URL('/auth/signin', request.url);
     signInUrl.searchParams.set('callbackUrl', encodeURI(request.url));
     return NextResponse.redirect(signInUrl);
