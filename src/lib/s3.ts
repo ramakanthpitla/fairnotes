@@ -16,8 +16,17 @@ const s3Client = new S3Client({
  */
 export async function ensureS3FolderExists(folderPath: string): Promise<boolean> {
   try {
-    const bucket = process.env.AWS_S3_BUCKET!;
-    const markerKey = `${folderPath}.folder_marker`;
+    const bucket = process.env.AWS_S3_BUCKET;
+    if (!bucket) {
+      console.error('AWS_S3_BUCKET not configured');
+      return false;
+    }
+
+    // Create a marker file with timestamp to ensure it's unique and visible
+    const timestamp = Date.now();
+    const markerKey = `${folderPath}.initialized_${timestamp}`;
+
+    console.log('Creating S3 folder marker:', { bucket, markerKey });
 
     await s3Client.send(
       new PutObjectCommand({
@@ -28,10 +37,10 @@ export async function ensureS3FolderExists(folderPath: string): Promise<boolean>
       })
     );
 
-    console.log('S3 FOLDER CREATED:', folderPath);
+    console.log('✅ S3 FOLDER CREATED:', folderPath);
     return true;
   } catch (err) {
-    console.error('S3 FOLDER CREATION ERROR:', err);
+    console.error('❌ S3 FOLDER CREATION ERROR:', err);
     return false;
   }
 }

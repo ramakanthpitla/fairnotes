@@ -55,12 +55,16 @@ export async function POST(request: Request) {
     });
 
     // Ensure the user-submissions folder exists
-    await ensureS3FolderExists('user-submissions/');
+    console.log('📁 Ensuring user-submissions folder exists...');
+    const folderCreated = await ensureS3FolderExists('user-submissions/');
+    console.log('📁 Folder creation result:', folderCreated);
 
     // Generate unique key for the upload
     const timestamp = Date.now();
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const key = `user-submissions/${userId}/${timestamp}-${sanitizedFileName}`;
+    
+    console.log('🔑 Generated S3 key:', key);
 
     // Create presigned URL for PUT operation
     const command = new PutObjectCommand({
@@ -72,6 +76,9 @@ export async function POST(request: Request) {
     const url = await getSignedUrl(s3Client, command, { expiresIn: 300 }); // 5 minutes
     const publicUrl = `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
 
+    console.log('✅ Presigned URL generated successfully');
+    console.log('📦 Response:', { key, bucket, publicUrl });
+
     return NextResponse.json({
       url,
       key,
@@ -79,11 +86,12 @@ export async function POST(request: Request) {
       publicUrl,
     });
   } catch (error) {
-    console.error('Error generating presigned URL:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('❌ Error generating presigned URL:', errorMessage);
     return NextResponse.json(
       { 
         error: 'Failed to generate upload URL',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: errorMessage
       },
       { status: 500 }
     );
