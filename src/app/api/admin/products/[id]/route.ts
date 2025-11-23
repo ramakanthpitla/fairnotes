@@ -143,21 +143,23 @@ export async function DELETE(
     
     // Force delete the product even with purchases
     // Purchase records will remain but productId will be set to null
-    await prisma.$transaction([
+    await prisma.$transaction(async (tx) => {
       // First, update all purchases to set productId to null
-      prisma.purchase.updateMany({
+      await tx.purchase.updateMany({
         where: { productId: id },
         data: { productId: null as any },
-      }),
+      });
+      
       // Then, delete all pricing plans
-      prisma.productPricing.deleteMany({
+      await tx.productPricing.deleteMany({
         where: { productId: id },
-      }),
+      });
+      
       // Finally, delete the product
-      prisma.product.delete({
+      await tx.product.delete({
         where: { id: id },
-      }),
-    ]);
+      });
+    });
 
     console.log(`DELETE [id]: Product ${id} deleted successfully from database`);
 
@@ -178,8 +180,13 @@ export async function DELETE(
       message: 'Product and associated files deleted successfully. Customer purchase records have been preserved.'
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Error deleting product:', { errorMessage, error });
+    let errorMessage = 'Unknown error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    console.error('DELETE [id] Error:', error);
     return NextResponse.json(
       { error: `Failed to delete product: ${errorMessage}` },
       { status: 500 }
