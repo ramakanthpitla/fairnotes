@@ -142,15 +142,24 @@ export async function DELETE(
     }
     
     // Force delete the product even with purchases
-    // Purchase records will remain but productId will be set to null
+    // Must delete in correct order due to relations:
+    // 1. ProductView records (required relation to Product)
+    // 2. Purchase records (optional relation to Product)
+    // 3. ProductPricing records (cascade on delete)
+    // 4. Product itself
     await prisma.$transaction(async (tx) => {
-      // First, update all purchases to set productId to null
+      // Delete all ProductView records for this product
+      await tx.productView.deleteMany({
+        where: { productId: id },
+      });
+      
+      // Update all purchases to set productId to null (optional relation)
       await tx.purchase.updateMany({
         where: { productId: id },
         data: { productId: null as any },
       });
       
-      // Then, delete all pricing plans
+      // Delete all pricing plans (has cascade on delete in schema)
       await tx.productPricing.deleteMany({
         where: { productId: id },
       });
