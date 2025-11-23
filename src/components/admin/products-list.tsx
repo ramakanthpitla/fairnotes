@@ -78,7 +78,7 @@ export function ProductsList({ initialProducts }: ProductsListProps) {
     }
 
     try {
-      const response = await fetch(`/api/admin/products/delete?id=${productId}`, {
+      const response = await fetch(`/api/admin/products/${productId}`, {
         method: 'DELETE',
       });
 

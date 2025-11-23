@@ -105,10 +105,20 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = (await getServerSession(authOptions)) as UserSession | null;
-  if (!session?.user || session.user.role !== 'ADMIN') return unauthorized();
+  
+  if (!session?.user) {
+    console.error('DELETE [id]: No session or user found');
+    return unauthorized();
+  }
+  
+  if (session.user.role !== 'ADMIN') {
+    console.error(`DELETE [id]: User role is '${session.user.role}', not 'ADMIN'`);
+    return unauthorized();
+  }
 
   try {
     const { id } = await params;
+    console.log(`DELETE [id]: Starting product deletion for ID: ${id}, User: ${session.user.email}`);
     
     // Get product details before deletion to access file URLs
     const product = await prisma.product.findUnique({
@@ -117,6 +127,7 @@ export async function DELETE(
     });
 
     if (!product) {
+      console.log(`DELETE [id]: Product not found for ID: ${id}`);
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
@@ -140,6 +151,8 @@ export async function DELETE(
         where: { id: id },
       }),
     ]);
+
+    console.log(`DELETE [id]: Product ${id} deleted successfully from database`);
 
     // Delete files from S3 after successful database deletion
     const filesToDelete = [product.fileUrl, product.thumbnail].filter(Boolean) as string[];

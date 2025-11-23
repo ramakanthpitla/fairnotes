@@ -30,7 +30,13 @@ export function DeleteProductButton({ productId, productTitle }: DeleteProductBu
             });
 
             if (!response.ok) {
-                const error = await response.json();
+                let error: any;
+                try {
+                    error = await response.json();
+                } catch {
+                    error = { error: `HTTP ${response.status}: ${response.statusText}` };
+                }
+                console.error('Delete API response:', { status: response.status, error });
                 throw new Error(error.error || 'Failed to delete product');
             }
 
