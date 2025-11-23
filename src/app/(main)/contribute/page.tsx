@@ -23,6 +23,7 @@ export default function ContributePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [ownsRights, setOwnsRights] = useState(false);
@@ -116,11 +117,13 @@ export default function ContributePage() {
     }
 
     setUploading(true);
+    setUploadProgress(0);
     console.log('📤 Starting PDF upload...', { fileName: file.name, fileSize: file.size, title });
 
     try {
       // Step 1: Get presigned URL
       console.log('📋 Requesting presigned URL...');
+      setUploadProgress(5);
       const presignedRes = await fetch('/api/upload/presigned-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,24 +151,47 @@ export default function ContributePage() {
         throw new Error('Invalid presigned URL response - missing url or publicUrl');
       }
 
-      // Step 2: Upload to S3
+      // Step 2: Upload to S3 with progress tracking
       console.log('📤 Uploading to S3...');
-      const s3Response = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type,
-        },
-        body: file,
-        credentials: 'omit',
-      });
-
-      console.log('✅ S3 upload response status:', s3Response.status);
-
-      if (!s3Response.ok) {
-        const responseText = await s3Response.text().catch(() => '');
-        console.error('❌ S3 upload error:', { status: s3Response.status, response: responseText });
-        throw new Error(`S3 upload failed: ${s3Response.status} ${responseText}`.trim());
-      }
+      setUploadProgress(10);
+      
+      // Use XMLHttpRequest for progress tracking
+      const uploadToS3 = () => {
+        return new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          
+          xhr.upload.addEventListener('progress', (event) => {
+            if (event.lengthComputable) {
+              const percentComplete = Math.round((event.loaded / event.total) * 80) + 10; // 10-90%
+              setUploadProgress(percentComplete);
+              console.log(`📤 Upload progress: ${percentComplete}%`);
+            }
+          });
+          
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setUploadProgress(95);
+              resolve();
+            } else {
+              reject(new Error(`S3 upload failed: ${xhr.status}`));
+            }
+          });
+          
+          xhr.addEventListener('error', () => {
+            reject(new Error('Network error during upload'));
+          });
+          
+          xhr.addEventListener('abort', () => {
+            reject(new Error('Upload cancelled'));
+          });
+          
+          xhr.open('PUT', url);
+          xhr.setRequestHeader('Content-Type', file.type);
+          xhr.send(file);
+        });
+      };
+      
+      await uploadToS3();
 
       console.log('✅ File uploaded to S3 successfully');
 
@@ -195,9 +221,11 @@ export default function ContributePage() {
       setTitle('');
       setFile(null);
       setOwnsRights(false);
+      setUploadProgress(0);
       fetchUserData();
     } catch (error) {
       console.error('❌ Upload error:', error);
+      setUploadProgress(0);
       toast.error(error instanceof Error ? error.message : 'Upload failed');
     } finally {
       setUploading(false);
@@ -337,7 +365,7 @@ export default function ContributePage() {
             {uploading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Uploading...
+                Uploading {uploadProgress}%...
               </>
             ) : (
               <>
@@ -346,8 +374,18 @@ export default function ContributePage() {
               </>
             )}
           </Button>
+          
+          {uploading && (
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
+          )}
+          
           <div className="mt-2 text-xs text-muted-foreground">
-            Status: {uploading ? 'Uploading...' : 'Ready'} | File: {file ? `✓ (${(file.size / (1024 * 1024)).toFixed(2)}MB)` : '✗'} | Title: {title.trim() ? '✓' : '✗'} | Rights: {ownsRights ? '✓' : '✗'}
+            Status: {uploading ? `Uploading... ${uploadProgress}%` : 'Ready'} | File: {file ? `✓ (${(file.size / (1024 * 1024)).toFixed(2)}MB)` : '✗'} | Title: {title.trim() ? '✓' : '✗'} | Rights: {ownsRights ? '✓' : '✗'}
           </div>
         </form>
       </Card>

@@ -216,10 +216,11 @@ export function SubmissionsList({ initialSubmissions }: Props) {
                     <span className="text-sm font-medium">{submission.status}</span>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap md:justify-end">
                     <Button
                       size="sm"
                       variant="outline"
+                      className="flex-1 md:flex-none min-w-[100px]"
                       onClick={() => {
                         setSelectedSubmission(submission);
                         setViewDialog(true);
@@ -233,6 +234,7 @@ export function SubmissionsList({ initialSubmissions }: Props) {
                         <Button
                           size="sm"
                           variant="default"
+                          className="flex-1 md:flex-none min-w-[100px]"
                           onClick={() => {
                             setSelectedSubmission(submission);
                             setActionDialog('approve');
@@ -243,6 +245,7 @@ export function SubmissionsList({ initialSubmissions }: Props) {
                         <Button
                           size="sm"
                           variant="destructive"
+                          className="flex-1 md:flex-none min-w-[100px]"
                           onClick={() => {
                             setSelectedSubmission(submission);
                             setActionDialog('reject');
@@ -262,19 +265,22 @@ export function SubmissionsList({ initialSubmissions }: Props) {
 
       {/* View PDF Dialog */}
       <Dialog open={viewDialog} onOpenChange={setViewDialog}>
-        <DialogContent className="max-w-4xl h-[80vh]">
+        <DialogContent className="max-w-4xl max-h-[80vh] h-[80vh] overflow-hidden">
           <DialogHeader>
-            <DialogTitle>{selectedSubmission?.title}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg truncate">{selectedSubmission?.title}</DialogTitle>
+            <DialogDescription className="text-sm">
               Submitted by {selectedSubmission?.user.name || selectedSubmission?.user.email}
             </DialogDescription>
           </DialogHeader>
           {selectedSubmission && (
-            <iframe
-              src={`https://${process.env.NEXT_PUBLIC_AWS_S3_BUCKET || 'studymaterials-bucket'}.s3.${process.env.NEXT_PUBLIC_AWS_REGION || 'ap-south-2'}.amazonaws.com/${selectedSubmission.pdfUrl}#toolbar=1`}
-              className="w-full h-full border rounded"
-              title="PDF Preview"
-            />
+            <div className="w-full h-full overflow-auto">
+              <iframe
+                src={`${selectedSubmission.pdfUrl}#toolbar=1`}
+                className="w-full h-full border rounded"
+                title="PDF Preview"
+                allow="fullscreen"
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>

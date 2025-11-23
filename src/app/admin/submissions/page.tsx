@@ -35,10 +35,10 @@ export default async function AdminSubmissionsPage() {
   }));
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto py-8 px-4">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">User Submissions</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl md:text-3xl font-bold mb-2">User Submissions</h1>
+        <p className="text-muted-foreground text-sm md:text-base">
           Review and process user-uploaded study materials
         </p>
       </div>
