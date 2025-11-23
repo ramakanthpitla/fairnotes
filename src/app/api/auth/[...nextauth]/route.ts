@@ -39,7 +39,6 @@ export const authOptions: AuthOptions = {
           response_type: 'code',
         },
       },
-      allowDangerousEmailAccountLinking: true,
     }),
   ],
   session: {
@@ -72,11 +71,11 @@ export const authOptions: AuthOptions = {
     },
     async jwt({ token, user, account, profile }: { token: JWT; user?: any; account?: any; profile?: any }) {
       try {
-        console.log('[NextAuth] JWT callback triggered:', { 
-          hasUser: !!user, 
+        console.log('[NextAuth] JWT callback triggered:', {
+          hasUser: !!user,
           hasAccount: !!account,
           tokenSub: token.sub,
-          tokenRole: token.role 
+          tokenRole: token.role
         });
 
         // First time JWT is created (user just signed in)
