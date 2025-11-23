@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { ensureS3FolderExists } from '@/lib/s3';
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions as any);
@@ -23,9 +22,6 @@ export async function POST(request: Request) {
   const filename = String(form.get('filename') || '') || 'upload';
   const contentType = String(form.get('contentType') || '') || 'application/octet-stream';
   if (!file) return NextResponse.json({ error: 'file is required' }, { status: 400 });
-
-  // Ensure the uploads folder exists
-  await ensureS3FolderExists('uploads/');
 
   const key = `uploads/${Date.now()}-${filename}`;
   const body = Buffer.from(await file.arrayBuffer());

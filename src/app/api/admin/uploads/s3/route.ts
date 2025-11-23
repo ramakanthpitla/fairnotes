@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { S3Client } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
-import { ensureS3FolderExists } from '@/lib/s3';
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions as any);
@@ -34,9 +33,6 @@ export async function POST(request: Request) {
   }
 
   const s3 = new S3Client({ region, credentials: { accessKeyId, secretAccessKey } });
-
-  // Ensure the uploads folder exists
-  await ensureS3FolderExists('uploads/');
 
   const key = `uploads/${Date.now()}-${filename}`;
   try {
