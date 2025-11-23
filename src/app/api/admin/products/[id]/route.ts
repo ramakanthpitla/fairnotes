@@ -4,6 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { deleteFileFromS3 } from '@/lib/s3';
 import { UserSession } from '@/lib/auth-utils';
+import { getAuthSession } from '@/lib/auth';
 
 function unauthorized() {
   return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
@@ -104,16 +105,22 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = (await getServerSession(authOptions)) as UserSession | null;
+  const session = await getAuthSession();
   
   if (!session?.user) {
     console.error('DELETE [id]: No session or user found');
-    return unauthorized();
+    return NextResponse.json(
+      { error: 'Unauthorized - No session' },
+      { status: 401 }
+    );
   }
   
   if (session.user.role !== 'ADMIN') {
     console.error(`DELETE [id]: User role is '${session.user.role}', not 'ADMIN'`);
-    return unauthorized();
+    return NextResponse.json(
+      { error: 'Unauthorized - Admin access required' },
+      { status: 403 }
+    );
   }
 
   try {
@@ -171,9 +178,10 @@ export async function DELETE(
       message: 'Product and associated files deleted successfully. Customer purchase records have been preserved.'
     });
   } catch (error) {
-    console.error('Error deleting product:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Error deleting product:', { errorMessage, error });
     return NextResponse.json(
-      { error: 'Failed to delete product. Please try again.' },
+      { error: `Failed to delete product: ${errorMessage}` },
       { status: 500 }
     );
   }
