@@ -40,21 +40,9 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // Delete the product and all related records in a transaction
-    await prisma.$transaction(async (tx) => {
-      // Delete related records explicitly to ensure cascade works
-      await tx.productPricing.deleteMany({
-        where: { productId },
-      });
-
-      await tx.purchase.deleteMany({
-        where: { productId },
-      });
-
-      // Finally, delete the product
-      await tx.product.delete({
-        where: { id: productId },
-      });
+    // Delete the product (cascade will handle related records)
+    await prisma.product.delete({
+      where: { id: productId },
     });
 
     // Delete files from S3 (non-blocking, don't fail the request if S3 delete fails)
