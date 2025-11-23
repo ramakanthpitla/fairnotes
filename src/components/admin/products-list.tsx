@@ -43,7 +43,7 @@ export function ProductsList({ initialProducts }: ProductsListProps) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<{id: string; title: string} | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<{ id: string; title: string } | null>(null);
   const [sortKey, setSortKey] = useState<'createdAt' | 'viewCount' | 'purchaseCount' | 'activeCustomersCount'>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
@@ -78,7 +78,7 @@ export function ProductsList({ initialProducts }: ProductsListProps) {
     }
 
     try {
-      const response = await fetch(`/api/admin/products/${productId}`, {
+      const response = await fetch(`/api/admin/products/delete?id=${productId}`, {
         method: 'DELETE',
       });
 
@@ -154,143 +154,143 @@ export function ProductsList({ initialProducts }: ProductsListProps) {
           onClose={() => setSelectedProduct(null)}
         />
       )}
-      
+
       <div className="space-y-4">
         {/* Search Bar */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search by name, SKU, or description..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search by name, SKU, or description..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          {isSearching && (
+            <div className="text-sm text-muted-foreground">Searching...</div>
+          )}
         </div>
-        {isSearching && (
-          <div className="text-sm text-muted-foreground">Searching...</div>
-        )}
-      </div>
 
-      {/* Products Table */}
-      <div className="rounded-lg border bg-card">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b">
-                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">SKU</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Title</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('viewCount')}>
-                  Views
-                  {renderSortIndicator('viewCount')}
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('purchaseCount')}>
-                  Purchases
-                  {renderSortIndicator('purchaseCount')}
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('activeCustomersCount')}>
-                  Active Customers
-                  {renderSortIndicator('activeCustomersCount')}
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('createdAt')}>
-                  Type
-                  {renderSortIndicator('createdAt')}
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Pricing Options</th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
-                <th className="px-6 py-3 text-right text-sm font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {sortedProducts.map((product) => (
-                <tr key={product.id} className="hover:bg-muted/50">
-                  <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
-                    {product.sku}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="max-w-xs">
-                      <div className="font-medium">{product.title}</div>
-                      {searchQuery && product.description && (
-                        <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                          {product.description}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm">{product.viewCount}</td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm">{product.purchaseCount}</td>
-                  <td className="whitespace-nowrap px-6 py-4 text-sm">{product.activeCustomersCount}</td>
-                  <td className="whitespace-nowrap px-6 py-4 capitalize">{product.type}</td>
-                  <td className="px-6 py-4">
-                    {product.isFree ? (
-                      <Badge variant="outline" className="bg-green-50 text-green-700">Free</Badge>
-                    ) : product.pricing.length > 0 ? (
-                      <div className="space-y-1">
-                        {product.pricing.map((price) => (
-                          <div key={price.id} className="text-sm">
-                            <span className="font-medium">{price.name}:</span>{' '}
-                            <span className="text-muted-foreground">
-                              {formatCurrency(price.price)} for {price.duration} days
-                            </span>
+        {/* Products Table */}
+        <div className="rounded-lg border bg-card">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">SKU</th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Title</th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('viewCount')}>
+                    Views
+                    {renderSortIndicator('viewCount')}
+                  </th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('purchaseCount')}>
+                    Purchases
+                    {renderSortIndicator('purchaseCount')}
+                  </th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('activeCustomersCount')}>
+                    Active Customers
+                    {renderSortIndicator('activeCustomersCount')}
+                  </th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground cursor-pointer" onClick={() => toggleSort('createdAt')}>
+                    Type
+                    {renderSortIndicator('createdAt')}
+                  </th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Pricing Options</th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="px-6 py-3 text-right text-sm font-medium text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {sortedProducts.map((product) => (
+                  <tr key={product.id} className="hover:bg-muted/50">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-muted-foreground">
+                      {product.sku}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="max-w-xs">
+                        <div className="font-medium">{product.title}</div>
+                        {searchQuery && product.description && (
+                          <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                            {product.description}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">No pricing set</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4">
-                    <Badge variant={product.isActive ? 'default' : 'secondary'}>
-                      {product.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedProduct({id: product.id, title: product.title})}
-                        title="View Customers"
-                      >
-                        <Users className="h-4 w-4 mr-1" />
-                        Customers
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
-                        <Link href={`/admin/products/${product.id}`}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(product.id, product.title)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Delete
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {sortedProducts.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-sm text-muted-foreground">
-                    {searchQuery ? 'No products found matching your search.' : 'No products found.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">{product.viewCount}</td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">{product.purchaseCount}</td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">{product.activeCustomersCount}</td>
+                    <td className="whitespace-nowrap px-6 py-4 capitalize">{product.type}</td>
+                    <td className="px-6 py-4">
+                      {product.isFree ? (
+                        <Badge variant="outline" className="bg-green-50 text-green-700">Free</Badge>
+                      ) : product.pricing.length > 0 ? (
+                        <div className="space-y-1">
+                          {product.pricing.map((price) => (
+                            <div key={price.id} className="text-sm">
+                              <span className="font-medium">{price.name}:</span>{' '}
+                              <span className="text-muted-foreground">
+                                {formatCurrency(price.price)} for {price.duration} days
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">No pricing set</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <Badge variant={product.isActive ? 'default' : 'secondary'}>
+                        {product.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedProduct({ id: product.id, title: product.title })}
+                          title="View Customers"
+                        >
+                          <Users className="h-4 w-4 mr-1" />
+                          Customers
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                        >
+                          <Link href={`/admin/products/${product.id}`}>
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDelete(product.id, product.title)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {sortedProducts.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                      {searchQuery ? 'No products found matching your search.' : 'No products found.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
     </>
   );
 }
