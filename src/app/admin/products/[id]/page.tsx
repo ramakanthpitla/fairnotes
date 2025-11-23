@@ -1,4 +1,5 @@
 import { requireAdmin } from '@/lib/auth';
+import { DeleteProductButton } from '@/components/admin/delete-product-button';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { Button } from '@/components/ui/button';
@@ -127,7 +128,7 @@ async function updateProduct(id: string, formData: FormData) {
 
 async function deleteProduct(id: string) {
   'use server';
-  
+
   // Force delete the product even with purchases
   // Purchase records will remain but productId will be set to null
   await prisma.$transaction([
@@ -145,25 +146,25 @@ async function deleteProduct(id: string) {
       where: { id },
     }),
   ]);
-  
+
   // Redirect after successful deletion
   redirect('/admin/products');
 }
 
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
-  
+
   const { id } = await params;
-  
+
   if (!id) {
     redirect('/admin/products');
   }
 
   let product: Product | null = null;
-  
+
   try {
     const result = await prisma.product.findFirst({
-      where: { 
+      where: {
         id: id
       },
       include: {
@@ -173,12 +174,12 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         },
       },
     });
-    
+
     if (!result) {
       console.error(`Product not found with id: ${id}`);
       redirect('/admin/products');
     }
-    
+
     product = {
       id: result.id,
       title: result.title,
@@ -207,20 +208,17 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     <div className="container mx-auto py-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-bold">Edit Product</h1>
-        <form action={async (formData: FormData) => {
-          'use server';
-          await deleteProduct(product!.id);
-        }}>
-          <Button 
-            type="submit" 
-            variant="destructive"
-          >
-            Delete Product
-          </Button>
-        </form>
+        <DeleteProductButton
+          productId={product!.id}
+          productTitle={product!.title}
+          onDelete={async () => {
+            'use server';
+            await deleteProduct(product!.id);
+          }}
+        />
       </div>
 
-      <form 
+      <form
         action={async (fd) => {
           'use server';
           await updateProduct(product!.id, fd);
@@ -253,30 +251,30 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
 
           <div className="space-y-2">
             <label className="text-sm font-medium">File URL</label>
-            <HiddenInputUploader 
-              name="fileUrl" 
-              label="Upload File (PDF or Video)" 
-              accept="application/pdf,video/*" 
+            <HiddenInputUploader
+              name="fileUrl"
+              label="Upload File (PDF or Video)"
+              accept="application/pdf,video/*"
               defaultValue={product?.fileUrl || ''}
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Thumbnail URL</label>
-            <HiddenInputUploader 
-              name="thumbnail" 
-              label="Upload Thumbnail" 
-              accept="image/*" 
+            <HiddenInputUploader
+              name="thumbnail"
+              label="Upload Thumbnail"
+              accept="image/*"
               defaultValue={product?.thumbnail || ''}
             />
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <Switch 
-                id="isFree" 
-                name="isFree" 
-                defaultChecked={product?.isFree} 
+              <Switch
+                id="isFree"
+                name="isFree"
+                defaultChecked={product?.isFree}
               />
               <Label htmlFor="isFree">Free Product</Label>
             </div>
@@ -284,13 +282,13 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Price (in INR)</label>
-            <Input 
-              type="number" 
-              name="price" 
-              defaultValue={product?.price || 0} 
-              min="0" 
-              step="0.01" 
-              required 
+            <Input
+              type="number"
+              name="price"
+              defaultValue={product?.price || 0}
+              min="0"
+              step="0.01"
+              required
               disabled={product?.isFree}
               className={product?.isFree ? 'bg-gray-100' : ''}
             />
@@ -301,12 +299,12 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Duration (in days)</label>
-            <Input 
-              type="number" 
-              name="duration" 
-              defaultValue={product?.duration || 30} 
-              min="1" 
-              required 
+            <Input
+              type="number"
+              name="duration"
+              defaultValue={product?.duration || 30}
+              min="1"
+              required
               disabled={product?.isFree}
               className={product?.isFree ? 'bg-gray-100' : ''}
             />
@@ -317,10 +315,10 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
 
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
-              <Switch 
-                id="isActive" 
-                name="isActive" 
-                defaultChecked={product?.isActive} 
+              <Switch
+                id="isActive"
+                name="isActive"
+                defaultChecked={product?.isActive}
               />
               <Label htmlFor="isActive">Active</Label>
             </div>
@@ -329,8 +327,8 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           <div className="col-span-full space-y-6">
             {!product?.isFree && (
               <div className="border-t border-gray-200 pt-6">
-                <PricingPlans 
-                  productId={product?.id} 
+                <PricingPlans
+                  productId={product?.id}
                   initialPlans={product?.pricingPlans || []}
                 />
                 <input type="hidden" name="pricingPlans" value={JSON.stringify(product?.pricingPlans || [])} />
