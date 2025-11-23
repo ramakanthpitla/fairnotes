@@ -320,7 +320,7 @@ export default function ContributePage() {
             </Label>
           </div>
 
-          <Button type="submit" className="w-full" disabled={uploading}>
+          <Button type="submit" className="w-full" disabled={uploading || !file || !title.trim() || !ownsRights}>
             {uploading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -333,6 +333,9 @@ export default function ContributePage() {
               </>
             )}
           </Button>
+          <div className="mt-2 text-xs text-muted-foreground">
+            Status: {uploading ? 'Uploading' : 'Ready'} | File: {file ? '✓' : '✗'} | Title: {title.trim() ? '✓' : '✗'} | Rights: {ownsRights ? '✓' : '✗'}
+          </div>
         </form>
       </Card>
 
