@@ -66,16 +66,28 @@ export default function ContributePage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
+    console.log('📁 File selected:', { fileName: selectedFile?.name, type: selectedFile?.type, size: selectedFile?.size });
+    
     if (selectedFile) {
-      if (selectedFile.type !== 'application/pdf') {
+      // Check file extension as fallback for type detection
+      const isValidType = selectedFile.type === 'application/pdf' || selectedFile.name.toLowerCase().endsWith('.pdf');
+      
+      if (!isValidType) {
+        console.error('❌ Invalid file type:', selectedFile.type);
         toast.error('Please select a PDF file');
         return;
       }
+      
       if (selectedFile.size > 50 * 1024 * 1024) { // 50MB limit
+        console.error('❌ File too large:', selectedFile.size);
         toast.error('File size must be less than 50MB');
         return;
       }
+      
+      console.log('✅ File validation passed, setting file state');
       setFile(selectedFile);
+    } else {
+      console.warn('⚠️ No file selected or file input cleared');
     }
   };
 
