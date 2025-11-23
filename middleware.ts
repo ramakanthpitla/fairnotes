@@ -14,6 +14,7 @@ const publicPaths = [
   '/api/products',
   '/api/products/[id]',
   '/api/thumbnails',
+  '/api/admin', // Allow API routes to handle their own auth
 ];
 
 const adminPaths = [

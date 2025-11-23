@@ -27,6 +27,10 @@ export function DeleteProductButton({ productId, productTitle }: DeleteProductBu
         try {
             const response = await fetch(`/api/admin/products/${productId}`, {
                 method: 'DELETE',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
             });
 
             if (!response.ok) {
