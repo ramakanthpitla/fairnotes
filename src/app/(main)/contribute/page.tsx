@@ -103,8 +103,11 @@ export default function ContributePage() {
     }
 
     setUploading(true);
+    console.log('📤 Starting PDF upload...', { fileName: file.name, fileSize: file.size, title });
 
     try {
+      // Step 1: Get presigned URL
+      console.log('📋 Requesting presigned URL...');
       const presignedRes = await fetch('/api/upload/presigned-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -114,15 +117,26 @@ export default function ContributePage() {
         }),
       });
 
+      console.log('✅ Presigned URL response status:', presignedRes.status);
+
       if (!presignedRes.ok) {
         const errorData = await presignedRes.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to get presigned URL');
+        console.error('❌ Presigned URL error:', errorData);
+        throw new Error(errorData.error || `Failed to get presigned URL (${presignedRes.status})`);
       }
 
-      const { url, key, publicUrl } = await presignedRes.json();
+      const responseData = await presignedRes.json();
+      console.log('✅ Presigned URL received:', { key: responseData.key, hasUrl: !!responseData.url, hasPublicUrl: !!responseData.publicUrl });
       
-      console.log('🔗 Presigned URL response:', { key, publicUrl });
+      const { url, key, publicUrl } = responseData;
+      
+      if (!url || !publicUrl) {
+        console.error('❌ Missing URL or publicUrl in response:', responseData);
+        throw new Error('Invalid presigned URL response - missing url or publicUrl');
+      }
 
+      // Step 2: Upload to S3
+      console.log('📤 Uploading to S3...');
       const s3Response = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -132,33 +146,45 @@ export default function ContributePage() {
         credentials: 'omit',
       });
 
+      console.log('✅ S3 upload response status:', s3Response.status);
+
       if (!s3Response.ok) {
         const responseText = await s3Response.text().catch(() => '');
+        console.error('❌ S3 upload error:', { status: s3Response.status, response: responseText });
         throw new Error(`S3 upload failed: ${s3Response.status} ${responseText}`.trim());
       }
 
-      console.log('✅ File uploaded to S3');
+      console.log('✅ File uploaded to S3 successfully');
 
+      // Step 3: Create submission record
+      console.log('📝 Creating submission record...', { title, pdfUrl: publicUrl });
       const submitRes = await fetch('/api/user/submit-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
-          pdfUrl: publicUrl,  // Use full publicUrl, not just key
+          pdfUrl: publicUrl,
         }),
       });
 
+      console.log('✅ Submission API response status:', submitRes.status);
+
       if (!submitRes.ok) {
         const errorData = await submitRes.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to create submission record');
+        console.error('❌ Submission error:', errorData);
+        throw new Error(errorData.error || `Failed to create submission record (${submitRes.status})`);
       }
+
+      const submitData = await submitRes.json();
+      console.log('✅ Submission created successfully:', submitData);
 
       toast.success('PDF submitted successfully! We will review it soon.');
       setTitle('');
       setFile(null);
+      setOwnsRights(false);
       fetchUserData();
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('❌ Upload error:', error);
       toast.error(error instanceof Error ? error.message : 'Upload failed');
     } finally {
       setUploading(false);
