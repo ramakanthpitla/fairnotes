@@ -5,9 +5,6 @@ export async function GET() {
   try {
     console.log('[API] Fetching featured products...');
 
-    // Verify Prisma connection is healthy
-    await prisma.$connect();
-
     // Get 6 random active products with their pricing
     const products = await prisma.product.findMany({
       where: {
@@ -55,11 +52,6 @@ export async function GET() {
     return NextResponse.json(
       { error: 'Failed to fetch featured products', details: errorDetails.message },
       { status: 500 }
-    );
-  } finally {
-    // Ensure Prisma disconnects properly
-    await prisma.$disconnect().catch(err =>
-      console.error('[API] Error disconnecting Prisma:', err)
     );
   }
 }
