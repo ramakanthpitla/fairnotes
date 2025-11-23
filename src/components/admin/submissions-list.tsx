@@ -263,20 +263,30 @@ export function SubmissionsList({ initialSubmissions }: Props) {
         </div>
       )}
 
-      {/* View PDF Dialog */}
+      {/* View PDF Dialog - Full Screen */}
       <Dialog open={viewDialog} onOpenChange={setViewDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] h-[80vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="text-lg truncate">{selectedSubmission?.title}</DialogTitle>
-            <DialogDescription className="text-sm">
-              Submitted by {selectedSubmission?.user.name || selectedSubmission?.user.email}
-            </DialogDescription>
+        <DialogContent className="fixed inset-0 max-w-none w-screen h-screen m-0 p-0 rounded-none bg-black/95 flex flex-col border-0">
+          <DialogHeader className="p-4 bg-slate-900 border-b border-slate-700">
+            <div className="flex items-center justify-between w-full gap-4">
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="text-base md:text-lg truncate text-white">{selectedSubmission?.title}</DialogTitle>
+                <DialogDescription className="text-xs md:text-sm text-slate-400 mt-1">
+                  Submitted by {selectedSubmission?.user.name || selectedSubmission?.user.email}
+                </DialogDescription>
+              </div>
+              <button
+                onClick={() => setViewDialog(false)}
+                className="text-slate-400 hover:text-white transition-colors flex-shrink-0"
+              >
+                ✕
+              </button>
+            </div>
           </DialogHeader>
           {selectedSubmission && (
-            <div className="w-full h-full overflow-auto">
+            <div className="flex-1 w-full overflow-hidden">
               <iframe
-                src={`${selectedSubmission.pdfUrl}#toolbar=1`}
-                className="w-full h-full border rounded"
+                src={`${selectedSubmission.pdfUrl}#toolbar=1&navpanes=0`}
+                className="w-full h-full border-0"
                 title="PDF Preview"
                 allow="fullscreen"
               />
