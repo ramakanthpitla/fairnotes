@@ -163,10 +163,12 @@ export function SubmissionsList({ initialSubmissions }: Props) {
             variant={filter === status ? 'default' : 'outline'}
             onClick={() => setFilter(status)}
             size="sm"
+            className={`admin-touch-button ${filter === status ? 'badge-gradient-primary shadow-md' : ''
+              }`}
           >
             {status}
             {status === 'PENDING' && pendingCount > 0 && (
-              <span className="ml-2 bg-primary-foreground text-primary rounded-full px-2 py-0.5 text-xs">
+              <span className="ml-2 bg-white text-primary rounded-full px-2 py-0.5 text-xs font-bold">
                 {pendingCount}
               </span>
             )}
@@ -176,89 +178,101 @@ export function SubmissionsList({ initialSubmissions }: Props) {
 
       {/* Submissions List */}
       {filteredSubmissions.length === 0 ? (
-        <Card className="p-12 text-center">
-          <p className="text-muted-foreground">No submissions found</p>
-        </Card>
+        <div className="rounded-lg border bg-card p-12 text-center">
+          <FileText className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
+          <p className="text-muted-foreground font-medium">No submissions found</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {filter !== 'ALL' ? `No ${filter.toLowerCase()} submissions` : 'Upload some materials to get started'}
+          </p>
+        </div>
       ) : (
         <div className="space-y-4">
           {filteredSubmissions.map((submission) => (
-            <Card key={submission.id} className="p-6">
+            <div key={submission.id} className="rounded-lg border bg-card p-4 md:p-6 shadow-sm hover:shadow-md smooth-transition">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <FileText className="w-5 h-5 text-muted-foreground" />
-                    <h3 className="font-semibold text-lg">{submission.title}</h3>
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <FileText className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-base md:text-lg">{submission.title}</h3>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                        <User className="w-4 h-4" />
+                        <span className="truncate">{submission.user.name || submission.user.email}</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                    <User className="w-4 h-4" />
-                    <span>{submission.user.name || submission.user.email}</span>
-                  </div>
-
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
                     Submitted: {new Date(submission.createdAt).toLocaleString()}
                   </p>
 
                   {submission.adminNotes && (
-                    <p className="text-sm text-red-600 mt-2">
-                      <strong>Admin Notes:</strong> {submission.adminNotes}
-                    </p>
+                    <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                      <p className="text-sm text-red-800 dark:text-red-200">
+                        <strong>Admin Notes:</strong> {submission.adminNotes}
+                      </p>
+                    </div>
                   )}
                 </div>
 
-                <div className="flex flex-col items-end gap-3">
+                <div className="flex flex-col items-stretch md:items-end gap-3">
                   <div
-                    className={`px-3 py-1 rounded-full flex items-center gap-2 ${getStatusColor(
+                    className={`px-4 py-2 rounded-full flex items-center gap-2 ${getStatusColor(
                       submission.status
                     )}`}
                   >
                     {getStatusIcon(submission.status)}
-                    <span className="text-sm font-medium">{submission.status}</span>
+                    <span className="text-sm font-semibold">{submission.status}</span>
                   </div>
 
-                  <div className="flex gap-2 flex-wrap md:justify-end">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      className="flex-1 md:flex-none min-w-[100px]"
+                      className="admin-touch-button flex-1 sm:flex-none min-w-[120px]"
                       onClick={() => {
                         setSelectedSubmission(submission);
                         setViewDialog(true);
                       }}
                     >
+                      <FileText className="h-4 w-4 mr-2" />
                       View PDF
                     </Button>
 
                     {submission.status === 'PENDING' && (
-                      <>
+                      <div className="flex gap-2">
                         <Button
                           size="sm"
-                          variant="default"
-                          className="flex-1 md:flex-none min-w-[100px]"
+                          className="admin-touch-button flex-1 badge-gradient-success"
                           onClick={() => {
                             setSelectedSubmission(submission);
                             setActionDialog('approve');
                           }}
                         >
+                          <CheckCircle className="h-4 w-4 mr-1" />
                           Approve
                         </Button>
                         <Button
                           size="sm"
                           variant="destructive"
-                          className="flex-1 md:flex-none min-w-[100px]"
+                          className="admin-touch-button flex-1"
                           onClick={() => {
                             setSelectedSubmission(submission);
                             setActionDialog('reject');
                           }}
                         >
+                          <XCircle className="h-4 w-4 mr-1" />
                           Reject
                         </Button>
-                      </>
+                      </div>
                     )}
                   </div>
                 </div>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}

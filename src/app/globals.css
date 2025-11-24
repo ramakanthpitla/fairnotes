@@ -224,3 +224,130 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Admin Panel Custom Styles */
+@layer components {
+
+  /* Gradient Utilities */
+  .admin-gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
+  }
+
+  .admin-gradient-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  }
+
+  .admin-gradient-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  }
+
+  .admin-gradient-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  }
+
+  .admin-gradient-info {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  }
+
+  /* Stat Card Styles */
+  .admin-stat-card {
+    @apply relative overflow-hidden rounded-xl border bg-card p-6 shadow-sm transition-all duration-300;
+  }
+
+  .admin-stat-card:hover {
+    @apply shadow-lg scale-[1.02];
+  }
+
+  .admin-stat-card::before {
+    content: '';
+    @apply absolute top-0 right-0 h-32 w-32 rounded-full opacity-10 blur-2xl;
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.5) 100%);
+  }
+
+  /* Mobile Product Card */
+  .admin-product-card {
+    @apply rounded-lg border bg-card p-4 shadow-sm transition-all duration-200 hover:shadow-md;
+  }
+
+  /* Mobile User Card */
+  .admin-user-card {
+    @apply rounded-lg border bg-card p-4 shadow-sm transition-all duration-200 hover:shadow-md;
+  }
+
+  /* Active Link Indicator */
+  .admin-nav-link-active {
+    @apply bg-gradient-to-r from-primary/10 to-primary/5 text-primary border-l-4 border-primary;
+  }
+
+  /* Touch-friendly Button */
+  .admin-touch-button {
+    @apply min-h-[44px] min-w-[44px] touch-manipulation;
+  }
+
+  /* Skeleton Loading Animation */
+  .skeleton {
+    @apply animate-pulse bg-muted/50 rounded;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(to right,
+        hsl(var(--muted) / 0.5) 0%,
+        hsl(var(--muted) / 0.8) 50%,
+        hsl(var(--muted) / 0.5) 100%);
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* Badge Gradients */
+  .badge-gradient-success {
+    @apply bg-gradient-to-r from-green-500 to-green-600 text-white border-0;
+  }
+
+  .badge-gradient-warning {
+    @apply bg-gradient-to-r from-yellow-500 to-yellow-600 text-white border-0;
+  }
+
+  .badge-gradient-danger {
+    @apply bg-gradient-to-r from-red-500 to-red-600 text-white border-0;
+  }
+
+  .badge-gradient-info {
+    @apply bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0;
+  }
+
+  /* Mobile Responsive Table Alternative */
+  .mobile-card-list {
+    @apply block md:hidden space-y-4;
+  }
+
+  .desktop-table {
+    @apply hidden md:block;
+  }
+
+  /* Glassmorphism Effect */
+  .glass-effect {
+    @apply backdrop-blur-md bg-background/80 border border-border/50;
+  }
+
+  /* Smooth Transitions */
+  .smooth-transition {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* Mobile Bottom Navigation Spacing */
+  @media (max-width: 768px) {
+    .admin-content-with-bottom-nav {
+      @apply pb-20;
+    }
+  }
+}
