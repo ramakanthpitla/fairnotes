@@ -28,7 +28,7 @@ export default async function BrowsePage() {
         <p className="text-sm sm:text-base text-muted-foreground">Pick from PDFs and Videos; prices in INR.</p>
       </div>
 
-      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-3 sm:gap-6 grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {products.map((p) => (
           <ProductCard
             key={p.id}
